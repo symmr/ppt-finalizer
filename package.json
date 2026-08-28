@@ -1,0 +1,12 @@
+{
+  "name": "ppt-finalizer",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PPT Finalizer のロジック（docs/pptx-core.js）に対するユニットテスト",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "jszip": "^3.10.1"
+  }
+}

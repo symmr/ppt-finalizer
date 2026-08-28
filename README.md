@@ -7,7 +7,7 @@ PowerPoint (`.pptx`) の仕上げをブラウザ内で行うツール。ファ�
 
 画面下部にバージョン（例: `v1.0`）が表示されます。
 
-リポジトリ構成: `docs/index.html`（UI）+ `docs/app.js`（処理）+ `docs/version.json`（バージョン）。  
+リポジトリ構成: `docs/index.html`（UI）+ `docs/app.js`（画面の処理）+ `docs/pptx-core.js`（PPTX 解析・変換エンジン、DOM 非依存）+ `docs/version.json`（バージョン）。  
 変更履歴は [CHANGELOG.md](./CHANGELOG.md) を参照。
 
 ## 機能
@@ -30,6 +30,15 @@ PowerPoint (`.pptx`) の仕上げをブラウザ内で行うツール。ファ�
 4. **仕上げてダウンロード** または **仕上げて上書き**
 
 上書き保存は File System Access API 対応ブラウザ（Chrome / Edge）で HTTPS 上のみ利用できます。
+
+## 開発
+
+`docs/pptx-core.js`（PPTX 解析・変換ロジック）に対するユニットテストがあります。
+
+```sh
+npm install
+npm test
+```
 
 ## ライセンス
 
