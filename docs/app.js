@@ -346,9 +346,7 @@ async function runFsOp(fn) {
 }
 
 function backupTimestamp() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return String(Math.floor(Date.now() / 1000));
 }
 
 function backupBaseName(originalName) {
@@ -357,10 +355,11 @@ function backupBaseName(originalName) {
 
 async function resolveBackupName(dirHandle, originalName) {
   const stem = backupBaseName(originalName);
-  let backupName = `${stem}_backup.pptx`;
+  let backupName = `${stem}_backup_${backupTimestamp()}.pptx`;
   try {
     await dirHandle.getFileHandle(backupName, { create: false });
-    backupName = `${stem}_backup_${backupTimestamp()}.pptx`;
+    // Same-second collision (rare): fall back to millisecond precision.
+    backupName = `${stem}_backup_${Date.now()}.pptx`;
   } catch (err) {
     if (err.name !== "NotFoundError") throw err;
   }
