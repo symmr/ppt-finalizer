@@ -2324,8 +2324,9 @@ setActionState();
 showAppVersion();
 
 async function showAppVersion() {
+  const line = document.getElementById("appVersionLine");
   const el = document.getElementById("appVersion");
-  if (!el) return;
+  if (!line || !el) return;
   try {
     const res = await fetch("version.json", { cache: "no-store" });
     if (!res.ok) throw new Error("version fetch failed");
@@ -2334,8 +2335,8 @@ async function showAppVersion() {
     if (!version) throw new Error("empty version");
     const released = String(data.released || "").trim();
     el.textContent = released ? `v${version} (${released})` : `v${version}`;
-    el.hidden = false;
+    line.hidden = false;
   } catch {
-    el.hidden = true;
+    line.hidden = true;
   }
 }

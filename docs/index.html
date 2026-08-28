@@ -416,6 +416,12 @@
       color: var(--muted);
       text-align: center;
     }
+    .app-version a {
+      color: var(--muted);
+    }
+    .app-version a:hover {
+      color: var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -571,7 +577,10 @@
       本ツールのご利用および処理結果については、利用者ご自身の責任において行ってください。
       処理されたファイルに関して生じたいかなる問題についても、作者は一切の責任を負いません。
     </p>
-    <p class="app-version" id="appVersion" hidden aria-label="アプリバージョン"></p>
+    <p class="app-version" id="appVersionLine" hidden>
+      <a href="https://github.com/symmr/ppt-finalizer/" target="_blank" rel="noopener noreferrer">GitHub</a>
+      · <span id="appVersion"></span>
+    </p>
   </main>
 
   <div id="mediaThumbTooltip" class="media-thumb-tooltip" hidden aria-hidden="true">
