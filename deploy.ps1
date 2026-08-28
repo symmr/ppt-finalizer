@@ -10,7 +10,7 @@ Write-Host "Sync web -> docs..."
 Copy-Item -Force "$Root\web\replace-fonts.html" "$Root\docs\index.html"
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    throw "GitHub CLI (gh) が見つかりません。winget install GitHub.cli を実行してください。"
+    throw "GitHub CLI (gh) not found. Run: winget install GitHub.cli"
 }
 
 gh auth status | Out-Null
@@ -36,7 +36,7 @@ gh api repos/symmr/ppt-finalizer/pages -X POST `
     -f "source[path]=/docs" 2>$null
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Pages API skipped (already enabled or updating via Settings is fine)."
+    Write-Host "Pages POST skipped; trying PUT update..."
     gh api repos/symmr/ppt-finalizer/pages -X PUT `
         -f build_type=legacy `
         -f "source[branch]=main" `
