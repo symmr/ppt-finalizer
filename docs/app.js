@@ -958,6 +958,54 @@ async function computePackageOrphanMedia(zip) {
   };
 }
 
+async function collectMediaOwners(zip) {
+  const mediaOwners = new Map();
+
+  for (const path of Object.keys(zip.files)) {
+    if (!path.endsWith(".rels")) continue;
+    const owner = ownerPathFromRelsPath(path);
+    if (!owner) continue;
+    const rels = parseRelationships(await zip.files[path].async("string"));
+    for (const rel of rels) {
+      if (!isMediaRelationship(rel.type, rel.target)) continue;
+      const mediaPath = resolveZipPath(owner, rel.target);
+      if (!mediaPath.startsWith("ppt/media/")) continue;
+      if (!mediaOwners.has(mediaPath)) mediaOwners.set(mediaPath, new Set());
+      mediaOwners.get(mediaPath).add(owner);
+    }
+  }
+
+  return mediaOwners;
+}
+
+async function computeStructureFreedMedia(zip, layoutsToRemove, mastersToRemove) {
+  const doomed = new Set([...layoutsToRemove, ...mastersToRemove]);
+  const mediaOwners = await collectMediaOwners(zip);
+  const freedPaths = [];
+
+  for (const [mediaPath, owners] of mediaOwners) {
+    if (owners.size > 0 && [...owners].every((owner) => doomed.has(owner))) {
+      freedPaths.push(mediaPath);
+    }
+  }
+
+  const items = freedPaths
+    .map((path) => ({
+      path,
+      name: partFileName(path),
+      size: zipEntryExists(zip, path) ? getZipEntrySize(zip.files[path]) : 0,
+      missing: !zipEntryExists(zip, path),
+    }))
+    .sort((a, b) => b.size - a.size || Number(a.missing) - Number(b.missing));
+
+  return {
+    items,
+    totalSize: items.reduce((sum, item) => sum + item.size, 0),
+    missingCount: items.filter((item) => item.missing).length,
+    paths: new Set(items.filter((item) => zipEntryExists(zip, item.path)).map((item) => item.path)),
+  };
+}
+
 async function computeNotesInfo(zip) {
   const paths = Object.keys(zip.files).filter(
     (path) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(path)
@@ -1201,9 +1249,16 @@ async function computeCleanupPlan(zip) {
     return !master || structure.usedMasters.has(master);
   });
 
+  const structureFreedMedia = await computeStructureFreedMedia(
+    zip,
+    [...layoutsToRemove],
+    [...structure.unusedMasters]
+  );
+
   return {
     structure,
     slideOrphanMedia: slideOrphans,
+    structureFreedMedia,
     layoutsToRemove: [...layoutsToRemove],
     mastersToRemove: [...structure.unusedMasters],
     unusedLayoutCount: layoutsOnUsedMasters.length,
@@ -1402,15 +1457,17 @@ function renderCleanupPreview() {
   const slideCount = cleanupPlan.structure.slidePathToNum.size;
   if (structureOptionDesc) {
     structureOptionDesc.textContent =
-      `${slideCount} 枚のスライドから参照されていない型・マスター XML を削除します`;
+      `${slideCount} 枚のスライドから参照されていない型・マスター XML および関連するメディアを削除します`;
   }
   orphanMediaPreview.textContent = cleanupPlan.slideOrphanMedia.items.length
     ? `${formatBytes(cleanupPlan.slideOrphanMedia.totalSize)}（${cleanupPlan.slideOrphanMedia.items.length} 件` +
       `${cleanupPlan.slideOrphanMedia.missingCount ? `、参照のみ ${cleanupPlan.slideOrphanMedia.missingCount} 件` : ""}）`
     : "0 B（0 件）";
+  const structureMedia = cleanupPlan.structureFreedMedia;
   structurePreview.textContent =
     `${cleanupPlan.unusedLayoutCount} レイアウト + ${cleanupPlan.unusedMasterCount} マスター` +
-    `（合計 ${cleanupPlan.layoutsToRemove.length} レイアウト削除、${cleanupPlan.mastersToRemove.length} マスター削除）`;
+    `（合計 ${cleanupPlan.layoutsToRemove.length} レイアウト削除、${cleanupPlan.mastersToRemove.length} マスター削除` +
+    `${structureMedia.items.length ? `、メディア ${formatBytes(structureMedia.totalSize)}（${structureMedia.items.length} 件）` : ""}）`;
   notesPreview.textContent = cleanupPlan.notes.count
     ? `${cleanupPlan.notes.count} 件（${formatBytes(cleanupPlan.notes.bytes)}）`
     : "0 件";
@@ -1694,9 +1751,12 @@ async function finalizePptx(file, fonts, options) {
 
   const fontStats = await applyFontReplaceToZip(zip, fonts);
 
-  let structureStats = { layoutsRemoved: 0, mastersRemoved: 0 };
+  let structureStats = { layoutsRemoved: 0, mastersRemoved: 0, mediaRemoved: 0, mediaBytes: 0 };
   if (options.removeUnusedStructure) {
     structureStats = await removeUnusedStructure(zip, plan);
+    const structureMediaStats = await removePackageOrphanMedia(zip);
+    structureStats.mediaRemoved = structureMediaStats.count;
+    structureStats.mediaBytes = structureMediaStats.bytes;
   }
 
   let mediaStats = { count: 0, bytes: 0 };
@@ -1728,6 +1788,8 @@ async function finalizePptx(file, fonts, options) {
     embeddedFontsRemoved: fontStats.embeddedFontsRemoved,
     layoutsRemoved: structureStats.layoutsRemoved,
     mastersRemoved: structureStats.mastersRemoved,
+    structureMediaRemoved: structureStats.mediaRemoved,
+    structureMediaBytes: structureStats.mediaBytes,
     orphanMediaRemoved: mediaStats.count,
     orphanMediaBytes: mediaStats.bytes,
     notesRemoved: notesStats.count,
@@ -1925,8 +1987,14 @@ function renderStats(stats) {
     );
   }
   if (stats.layoutsRemoved > 0 || stats.mastersRemoved > 0) {
+    let structureDetail =
+      `レイアウト ${stats.layoutsRemoved}、マスター ${stats.mastersRemoved}`;
+    if (stats.structureMediaRemoved > 0) {
+      structureDetail +=
+        `、関連メディア ${stats.structureMediaRemoved} 件（${formatBytes(stats.structureMediaBytes)}）`;
+    }
     cleanupLines.push(
-      `<dt>未使用レイアウト／マスター</dt><dd>レイアウト ${stats.layoutsRemoved}、マスター ${stats.mastersRemoved}</dd>`
+      `<dt>未使用レイアウト／マスター</dt><dd>${structureDetail}</dd>`
     );
   }
   if (stats.notesRemoved > 0) {

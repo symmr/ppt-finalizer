@@ -5,6 +5,14 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.3.3] - 2026-08-28
+
+### Changed
+
+- 孤立メディア削除: rel 未参照のメディアのみ（文言調整）
+- 未使用レイアウト／マスター削除: 「上級」表記をやめ、削除時に関連メディアも自動削除
+- 整理オプションのプレビューに、レイアウト／マスター削除で解消されるメディア件数を表示
+
 ## [1.3.2] - 2026-08-28
 
 ### Changed
@@ -75,6 +83,7 @@
 - ファイルプロパティ削除（オプション）
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 
+[1.3.3]: https://github.com/symmr/ppt-finalizer/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/symmr/ppt-finalizer/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/symmr/ppt-finalizer/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/symmr/ppt-finalizer/compare/v1.2.0...v1.3.0
