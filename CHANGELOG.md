@@ -5,6 +5,19 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.3.1] - 2026-08-28
+
+### Fixed
+
+- Finalize 後に PowerPoint が「コンテンツを読み取れませんでした」と修復する不具合
+  - `hdphoto`（`.wdp`）rel をメディア参照として認識していなかった
+  - 「未使用レイアウト上のメディア」を孤立とみなして削除し、スライド側の rel が dangling になるケースがあった  
+    → パッケージ内の **いずれの rel からも参照されていない** メディアのみ削除する方式に変更
+
+### Changed
+
+- 孤立メディア削除の説明文を実際の挙動に合わせて更新
+
 ## [1.3.0] - 2026-08-28
 
 ### Changed
@@ -54,6 +67,7 @@
 - ファイルプロパティ削除（オプション）
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 
+[1.3.1]: https://github.com/symmr/ppt-finalizer/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/symmr/ppt-finalizer/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/symmr/ppt-finalizer/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/symmr/ppt-finalizer/compare/v1.0.0...v1.1.0

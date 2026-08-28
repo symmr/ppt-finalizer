@@ -574,7 +574,11 @@ function resolveZipPath(basePath, target) {
   return stack.join("/");
 }
 
-function isMediaRelationship(type) {
+function isMediaRelationship(type, target = "") {
+  const normalizedTarget = String(target || "").replace(/\\/g, "/");
+  if (/(?:^|\/)media\//.test(normalizedTarget)) {
+    return true;
+  }
   return MEDIA_REL_MARKERS.some((marker) => type.includes(marker));
 }
 
@@ -720,7 +724,7 @@ async function analyzeMediaUsage(zip, slidePathToNum) {
     const rels = parseRelationships(await zip.files[path].async("string"));
 
     for (const rel of rels) {
-      if (!isMediaRelationship(rel.type)) continue;
+      if (!isMediaRelationship(rel.type, rel.target)) continue;
       const mediaPath = resolveZipPath(ownerPath, rel.target);
 
       if (ownerPath.startsWith("ppt/slides/")) {
@@ -920,7 +924,7 @@ async function collectAllReferencedMedia(zip) {
     if (!owner) continue;
     const rels = parseRelationships(await zip.files[path].async("string"));
     for (const rel of rels) {
-      if (!isMediaRelationship(rel.type)) continue;
+      if (!isMediaRelationship(rel.type, rel.target)) continue;
       const mediaPath = resolveZipPath(owner, rel.target);
       if (mediaPath.startsWith("ppt/media/")) referenced.add(mediaPath);
     }
@@ -928,41 +932,13 @@ async function collectAllReferencedMedia(zip) {
   return referenced;
 }
 
-async function computeSlideOrphanMedia(zip, structure) {
-  const mediaOwners = new Map();
-
-  for (const path of Object.keys(zip.files)) {
-    if (!path.endsWith(".rels")) continue;
-    const owner = ownerPathFromRelsPath(path);
-    if (!owner) continue;
-    const rels = parseRelationships(await zip.files[path].async("string"));
-    for (const rel of rels) {
-      if (!isMediaRelationship(rel.type)) continue;
-      const mediaPath = resolveZipPath(owner, rel.target);
-      if (!mediaPath.startsWith("ppt/media/")) continue;
-      if (!mediaOwners.has(mediaPath)) mediaOwners.set(mediaPath, new Set());
-      mediaOwners.get(mediaPath).add(owner);
-    }
-  }
-
-  function ownerIsUsedBySlides(owner) {
-    if (owner.startsWith("ppt/slides/")) return true;
-    if (owner.startsWith("ppt/notesSlides/")) return true;
-    if (owner.startsWith("ppt/charts/")) return true;
-    if (owner.startsWith("ppt/diagrams/")) return true;
-    if (owner.startsWith("ppt/slideLayouts/")) return structure.usedLayouts.has(owner);
-    if (owner.startsWith("ppt/slideMasters/")) return structure.usedMasters.has(owner);
-    return false;
-  }
-
+async function computePackageOrphanMedia(zip) {
+  const referenced = await collectAllReferencedMedia(zip);
   const orphanPaths = [];
-  for (const [mediaPath, owners] of mediaOwners) {
-    const used = [...owners].some(ownerIsUsedBySlides);
-    if (!used) orphanPaths.push(mediaPath);
-  }
+
   for (const path of Object.keys(zip.files)) {
     if (!path.startsWith("ppt/media/") || zip.files[path].dir) continue;
-    if (!mediaOwners.has(path)) orphanPaths.push(path);
+    if (!referenced.has(path)) orphanPaths.push(path);
   }
 
   const items = orphanPaths
@@ -1209,7 +1185,7 @@ async function removeNotesFromZip(zip) {
 
 async function computeCleanupPlan(zip) {
   const structure = await buildDeckStructure(zip);
-  const slideOrphans = await computeSlideOrphanMedia(zip, structure);
+  const slideOrphans = await computePackageOrphanMedia(zip);
   const notes = await computeNotesInfo(zip);
   const properties = await scanDocumentProperties(zip);
 
@@ -1736,11 +1712,7 @@ async function finalizePptx(file, fonts, options) {
   }
 
   if (options.removeOrphanMedia) {
-    if (options.removeUnusedStructure || options.removeNotes) {
-      mediaStats = await removePackageOrphanMedia(zip);
-    } else {
-      mediaStats = await removeSlideOrphanMedia(zip, plan.slideOrphanMedia.paths);
-    }
+    mediaStats = await removePackageOrphanMedia(zip);
   }
 
   const blob = await zip.generateAsync({
