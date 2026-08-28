@@ -112,6 +112,13 @@
     }
     .dropzone p { margin: 0.25rem 0; }
     .dropzone .hint { color: var(--muted); font-size: 0.85rem; }
+    .file-area-note {
+      margin: 0.5rem 0 0;
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.45;
+      font-weight: 400;
+    }
     .file-name {
       margin-top: 0.75rem;
       font-size: 0.9rem;
@@ -189,10 +196,11 @@
     @media (prefers-color-scheme: dark) {
       .error { color: #f87171; }
     }
-    .note {
-      font-size: 0.8rem;
+    .disclaimer {
+      margin: 1rem 0 0;
+      font-size: 0.75rem;
       color: var(--muted);
-      margin-top: 1.25rem;
+      line-height: 1.45;
     }
     .section-title {
       margin: 0 0 0.5rem;
@@ -390,7 +398,7 @@
 <body>
   <main>
     <h1>PPT Finalizer</h1>
-    <p class="lead">PowerPoint (.pptx) のフォント統一・メディア／フォント分析・孤立メディア削除・未使用レイアウト整理・プロパティ／ノート削除をブラウザ内で行います。ファイルはサーバーへ送信されません。</p>
+    <p class="lead">PowerPoint (.pptx) の不要データ削除・フォント統一処理をブラウザ内で行います。ファイルはサーバーへ送信されません。</p>
 
     <section class="panel">
       <div class="dropzone" id="dropzone" aria-label="PPTXファイルをドロップ">
@@ -403,6 +411,11 @@
         <p class="file-name" id="fileName"></p>
         <span class="file-mode" id="fileMode" hidden></span>
       </div>
+      <p class="file-area-note" id="fsNote">
+        上書き保存は Chrome / Edge など File System Access API 対応ブラウザで利用できます。
+        初回上書き時のみ、バックアップ保存用にフォルダ確認ダイアログが出る場合があります（元ファイルと同じフォルダを選んでください）。
+        表示には PC に指定フォントがインストールされている必要があります。
+      </p>
       <input type="file" id="fileInput" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
 
       <section class="font-options">
@@ -521,10 +534,9 @@
       <dl class="stats" id="stats"></dl>
     </section>
 
-    <p class="note" id="fsNote">
-      上書き保存は Chrome / Edge など File System Access API 対応ブラウザで利用できます。
-      初回上書き時のみ、バックアップ保存用にフォルダ確認ダイアログが出る場合があります（元ファイルと同じフォルダを選んでください）。
-      表示には PC に指定フォントがインストールされている必要があります。
+    <p class="disclaimer">
+      本ツールのご利用および処理結果については、利用者ご自身の責任において行ってください。
+      処理されたファイルに関して生じたいかなる問題についても、作者は一切の責任を負いません。
     </p>
     <p class="app-version" id="appVersion" hidden aria-label="アプリバージョン"></p>
   </main>

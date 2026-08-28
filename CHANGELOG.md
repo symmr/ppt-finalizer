@@ -5,6 +5,14 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.3.2] - 2026-08-28
+
+### Changed
+
+- リード文を簡潔化
+- 上書き保存の注意書きをファイル選択枠の直下に移動
+- 免責事項を追加
+
 ## [1.3.1] - 2026-08-28
 
 ### Fixed
@@ -67,6 +75,7 @@
 - ファイルプロパティ削除（オプション）
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 
+[1.3.2]: https://github.com/symmr/ppt-finalizer/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/symmr/ppt-finalizer/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/symmr/ppt-finalizer/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/symmr/ppt-finalizer/compare/v1.1.0...v1.2.0
