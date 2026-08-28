@@ -88,6 +88,17 @@
     .custom-font {
       margin-top: 0.5rem;
     }
+    .font-options {
+      display: grid;
+      gap: 0.85rem;
+      margin-top: 1.25rem;
+    }
+    .font-row label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
     .dropzone {
       border: 2px dashed var(--border);
       border-radius: 8px;
@@ -388,14 +399,23 @@
       </div>
       <input type="file" id="fileInput" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
 
-      <section style="margin-top: 1.25rem;">
-        <label for="fontSelect">置換後のフォント</label>
-        <p class="field-hint">PPTX を読み込むと、このファイル内のフォントも選択肢に追加されます。</p>
-        <select id="fontSelect"></select>
-        <p class="scanning" id="scanningMsg" hidden>フォント一覧を読み取り中…</p>
-        <input type="text" id="customFontInput" class="custom-font" hidden
-          placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
-          aria-label="置換後フォント名（自由入力）">
+      <section class="font-options">
+        <p class="field-hint" style="margin: 0;">PPTX を読み込むと、このファイル内のフォントも選択肢に追加されます。プレースホルダー外のテキストは本文フォントになります。</p>
+        <div class="font-row">
+          <label for="titleFontSelect">タイトル</label>
+          <select id="titleFontSelect"></select>
+          <input type="text" id="titleCustomFontInput" class="custom-font" hidden
+            placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
+            aria-label="タイトル用フォント名（自由入力）">
+        </div>
+        <div class="font-row">
+          <label for="bodyFontSelect">本文</label>
+          <select id="bodyFontSelect"></select>
+          <input type="text" id="bodyCustomFontInput" class="custom-font" hidden
+            placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
+            aria-label="本文用フォント名（自由入力）">
+        </div>
+        <p class="scanning" id="scanningMsg" hidden>分析中…</p>
       </section>
 
       <section class="panel cleanup-options" id="cleanupPanel" hidden>
@@ -525,6 +545,13 @@
     const PRESET_SET = new Set(PRESET_FONTS);
     const TYPEFACE_CAPTURE_RE = /typeface="([^"]*)"/g;
     const TYPEFACE_RE = /typeface="[^"]*"/g;
+    const TITLE_PH_RE = /<p:ph[^>]*\btype="(?:title|ctrTitle|subTitle)"/;
+    const BODY_PH_RE = /<p:ph[^>]*\btype="body"/;
+    const STYLE_BLOCK_RES = [
+      { re: /<(?:p|a):titleStyle\b[\s\S]*?<\/(?:p|a):titleStyle>/g, role: "title" },
+      { re: /<(?:p|a):bodyStyle\b[\s\S]*?<\/(?:p|a):bodyStyle>/g, role: "body" },
+      { re: /<(?:p|a):otherStyle\b[\s\S]*?<\/(?:p|a):otherStyle>/g, role: "body" },
+    ];
     const EMBEDDED_FONT_BLOCK_RE = /<p:embeddedFont>([\s\S]*?)<\/p:embeddedFont>/g;
     const PREVIEWABLE_IMAGE_RE = /\.(png|jpe?g|gif|webp|bmp)$/i;
     const EMBEDDED_FONT_LST_RE = /<p:embeddedFontLst>[\s\S]*?<\/p:embeddedFontLst>/g;
@@ -545,12 +572,15 @@
     let pptxFonts = [];
     let mediaAnalysis = null;
     let cleanupPlan = null;
-    let selectedFont = DEFAULT_FONT;
+    let selectedTitleFont = DEFAULT_FONT;
+    let selectedBodyFont = DEFAULT_FONT;
     let pptxZipCache = null;
     const mediaThumbUrlCache = new Map();
 
-    const fontSelect = document.getElementById("fontSelect");
-    const customFontInput = document.getElementById("customFontInput");
+    const titleFontSelect = document.getElementById("titleFontSelect");
+    const titleCustomFontInput = document.getElementById("titleCustomFontInput");
+    const bodyFontSelect = document.getElementById("bodyFontSelect");
+    const bodyCustomFontInput = document.getElementById("bodyCustomFontInput");
     const scanningMsg = document.getElementById("scanningMsg");
     const dropzone = document.getElementById("dropzone");
     const openBtn = document.getElementById("openBtn");
@@ -730,16 +760,107 @@
       group.appendChild(option);
     }
 
-    function rebuildFontDropdown() {
-      const previous = selectedFont;
-      fontSelect.innerHTML = "";
+    function replaceTypefacesInString(text, font) {
+      const safeFont = escapeXmlAttr(font.trim() || DEFAULT_FONT);
+      return text.replace(TYPEFACE_RE, `typeface="${safeFont}"`);
+    }
+
+    function countTypefaces(text) {
+      TYPEFACE_RE.lastIndex = 0;
+      const matches = text.match(TYPEFACE_RE);
+      return matches ? matches.length : 0;
+    }
+
+    function findBalancedSpBlockEnd(xml, startIndex) {
+      const openTag = "<p:sp";
+      const closeTag = "</p:sp>";
+      let depth = 1;
+      let i = startIndex + openTag.length;
+      while (i < xml.length && depth > 0) {
+        const nextOpen = xml.indexOf(openTag, i);
+        const nextClose = xml.indexOf(closeTag, i);
+        if (nextClose === -1) return -1;
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          depth += 1;
+          i = nextOpen + openTag.length;
+        } else {
+          depth -= 1;
+          if (depth === 0) return nextClose + closeTag.length;
+          i = nextClose + closeTag.length;
+        }
+      }
+      return -1;
+    }
+
+    function replaceFontsInStyleBlocks(xml, titleFont, bodyFont) {
+      let result = xml;
+      let replacements = 0;
+      for (const { re, role } of STYLE_BLOCK_RES) {
+        re.lastIndex = 0;
+        result = result.replace(re, (block) => {
+          const font = role === "title" ? titleFont : bodyFont;
+          replacements += countTypefaces(block);
+          return replaceTypefacesInString(block, font);
+        });
+      }
+      return { data: result, count: replacements };
+    }
+
+    function replaceFontsContextual(data, titleFont, bodyFont) {
+      const safeTitle = (titleFont || DEFAULT_FONT).trim() || DEFAULT_FONT;
+      const safeBody = (bodyFont || DEFAULT_FONT).trim() || DEFAULT_FONT;
+      let replacements = 0;
+      const spStore = [];
+      const openTag = "<p:sp";
+
+      let masked = "";
+      let cursor = 0;
+      while (cursor < data.length) {
+        const start = data.indexOf(openTag, cursor);
+        if (start === -1) {
+          masked += data.slice(cursor);
+          break;
+        }
+        masked += data.slice(cursor, start);
+        const end = findBalancedSpBlockEnd(data, start);
+        if (end === -1) {
+          masked += data.slice(start);
+          break;
+        }
+        spStore.push(data.slice(start, end));
+        masked += `\x00SP${spStore.length - 1}\x00`;
+        cursor = end;
+      }
+
+      const styles = replaceFontsInStyleBlocks(masked, safeTitle, safeBody);
+      masked = styles.data;
+      replacements += styles.count;
+
+      const remaining = countReplace(masked, TYPEFACE_RE, `typeface="${escapeXmlAttr(safeBody)}"`);
+      masked = remaining.data;
+      replacements += remaining.count;
+
+      const restored = masked.replace(/\x00SP(\d+)\x00/g, (_, indexText) => {
+        const block = spStore[Number(indexText)];
+        let font = safeBody;
+        if (TITLE_PH_RE.test(block)) font = safeTitle;
+        else if (BODY_PH_RE.test(block)) font = safeBody;
+        replacements += countTypefaces(block);
+        return replaceTypefacesInString(block, font);
+      });
+
+      return { data: restored, count: replacements };
+    }
+
+    function populateFontSelect(selectEl, customInput, previous) {
+      selectEl.innerHTML = "";
 
       const presetGroup = document.createElement("optgroup");
       presetGroup.label = "おすすめ";
       for (const name of PRESET_FONTS) {
         addOption(presetGroup, name, name);
       }
-      fontSelect.appendChild(presetGroup);
+      selectEl.appendChild(presetGroup);
 
       const pptxOnly = pptxFonts.filter(({ name }) => !PRESET_SET.has(name));
       if (pptxOnly.length > 0) {
@@ -748,10 +869,10 @@
         for (const { name, count } of pptxOnly) {
           addOption(pptxGroup, name, `${name}（${count} 箇所）`);
         }
-        fontSelect.appendChild(pptxGroup);
+        selectEl.appendChild(pptxGroup);
       }
 
-      addOption(fontSelect, CUSTOM_VALUE, "その他（自由入力）");
+      addOption(selectEl, CUSTOM_VALUE, "その他（自由入力）");
 
       const knownValues = new Set([
         ...PRESET_FONTS,
@@ -759,41 +880,58 @@
       ]);
 
       if (knownValues.has(previous)) {
-        fontSelect.value = previous;
-        selectedFont = previous;
-        customFontInput.hidden = true;
-      } else if (previous && previous !== DEFAULT_FONT) {
-        fontSelect.value = CUSTOM_VALUE;
-        customFontInput.hidden = false;
-        customFontInput.value = previous;
-        selectedFont = previous;
-      } else {
-        fontSelect.value = DEFAULT_FONT;
-        selectedFont = DEFAULT_FONT;
-        customFontInput.hidden = true;
-        customFontInput.value = "";
+        selectEl.value = previous;
+        customInput.hidden = true;
+        return previous;
       }
+      if (previous && previous !== DEFAULT_FONT) {
+        selectEl.value = CUSTOM_VALUE;
+        customInput.hidden = false;
+        customInput.value = previous;
+        return previous;
+      }
+      selectEl.value = DEFAULT_FONT;
+      customInput.hidden = true;
+      customInput.value = "";
+      return DEFAULT_FONT;
     }
 
-    function getTargetFont() {
-      if (fontSelect.value === CUSTOM_VALUE) {
-        return customFontInput.value.trim() || DEFAULT_FONT;
-      }
-      return fontSelect.value.trim() || DEFAULT_FONT;
+    function rebuildFontDropdowns() {
+      selectedTitleFont = populateFontSelect(titleFontSelect, titleCustomFontInput, selectedTitleFont);
+      selectedBodyFont = populateFontSelect(bodyFontSelect, bodyCustomFontInput, selectedBodyFont);
     }
 
-    function onFontSelectChange() {
-      if (fontSelect.value === CUSTOM_VALUE) {
-        customFontInput.hidden = false;
-        customFontInput.focus();
-        if (!customFontInput.value.trim()) {
-          customFontInput.value = selectedFont === CUSTOM_VALUE ? "" : selectedFont;
+    function getFontFromPicker(selectEl, customInput) {
+      if (selectEl.value === CUSTOM_VALUE) {
+        return customInput.value.trim() || DEFAULT_FONT;
+      }
+      return selectEl.value.trim() || DEFAULT_FONT;
+    }
+
+    function getTargetFonts() {
+      return {
+        title: getFontFromPicker(titleFontSelect, titleCustomFontInput),
+        body: getFontFromPicker(bodyFontSelect, bodyCustomFontInput),
+      };
+    }
+
+    function bindFontPicker(selectEl, customInput, getSelected, setSelected) {
+      selectEl.addEventListener("change", () => {
+        if (selectEl.value === CUSTOM_VALUE) {
+          customInput.hidden = false;
+          customInput.focus();
+          if (!customInput.value.trim()) {
+            customInput.value = getSelected() === CUSTOM_VALUE ? "" : getSelected();
+          }
+          setSelected(customInput.value.trim() || DEFAULT_FONT);
+        } else {
+          customInput.hidden = true;
+          setSelected(selectEl.value);
         }
-        selectedFont = customFontInput.value.trim() || DEFAULT_FONT;
-      } else {
-        customFontInput.hidden = true;
-        selectedFont = fontSelect.value;
-      }
+      });
+      customInput.addEventListener("input", () => {
+        setSelected(customInput.value.trim() || DEFAULT_FONT);
+      });
     }
 
     function updateFileMode() {
@@ -1762,7 +1900,7 @@
       return { count, bytes };
     }
 
-    async function applyFontReplaceToZip(zip, targetFont) {
+    async function applyFontReplaceToZip(zip, fonts) {
       let replacements = 0;
       let filesChanged = 0;
       let embeddedFontsRemoved = 0;
@@ -1779,7 +1917,7 @@
 
         if (path.endsWith(".xml") || path.endsWith(".rels")) {
           const text = await entry.async("string");
-          const { data, count } = replaceFontsInXml(path, text, targetFont);
+          const { data, count } = replaceFontsInXml(path, text, fonts);
           if (data !== text) filesChanged += 1;
           replacements += count;
           zip.file(path, data);
@@ -2057,9 +2195,9 @@
       return fonts;
     }
 
-    function replaceFontsInXml(name, data, targetFont) {
-      const safeFont = escapeXmlAttr(targetFont.trim());
-      const typefaceValue = `typeface="${safeFont}"`;
+    function replaceFontsInXml(name, data, fonts) {
+      const titleFont = fonts.title.trim() || DEFAULT_FONT;
+      const bodyFont = fonts.body.trim() || DEFAULT_FONT;
       let total = 0;
 
       if (name === "ppt/presentation.xml") {
@@ -2067,8 +2205,8 @@
         data = result.data;
         total += result.count;
         data = data.replace(/embedTrueTypeFonts="1"/g, 'embedTrueTypeFonts="0"');
-        result = countReplace(data, TYPEFACE_RE, typefaceValue);
-        return { data: result.data, count: total + result.count };
+        const contextual = replaceFontsContextual(data, titleFont, bodyFont);
+        return { data: contextual.data, count: total + contextual.count };
       }
 
       if (name === "ppt/_rels/presentation.xml.rels") {
@@ -2080,12 +2218,14 @@
         return { data, count: 0 };
       }
 
-      const result = countReplace(data, TYPEFACE_RE, typefaceValue);
-      return { data: result.data, count: result.count };
+      const contextual = replaceFontsContextual(data, titleFont, bodyFont);
+      return { data: contextual.data, count: contextual.count };
     }
 
-    async function finalizePptx(file, targetFont, options) {
-      if (!targetFont.trim()) {
+    async function finalizePptx(file, fonts, options) {
+      const titleFont = fonts.title.trim() || DEFAULT_FONT;
+      const bodyFont = fonts.body.trim() || DEFAULT_FONT;
+      if (!titleFont || !bodyFont) {
         throw new Error("フォント名を入力してください。");
       }
       if (!file.name.toLowerCase().endsWith(".pptx")) {
@@ -2095,7 +2235,7 @@
       const zip = await JSZip.loadAsync(await file.arrayBuffer());
       const plan = await computeCleanupPlan(zip);
 
-      const fontStats = await applyFontReplaceToZip(zip, targetFont);
+      const fontStats = await applyFontReplaceToZip(zip, fonts);
 
       let structureStats = { layoutsRemoved: 0, mastersRemoved: 0 };
       if (options.removeUnusedStructure) {
@@ -2140,7 +2280,9 @@
         notesRemoved: notesStats.count,
         notesBytes: notesStats.bytes,
         propertiesCleared: propertiesStats.cleared,
-        targetFont: targetFont.trim(),
+        titleFont,
+        bodyFont,
+        targetFont: bodyFont,
         sourceFonts: pptxFonts.map((f) => f.name),
         originalSize: file.size,
         outputSize: blob.size,
@@ -2165,7 +2307,7 @@
         revokeMediaThumbUrls();
         analysisStack.hidden = true;
         cleanupPanel.hidden = true;
-        rebuildFontDropdown();
+        rebuildFontDropdowns();
         return;
       }
 
@@ -2177,7 +2319,7 @@
         pptxFonts = analysis.fonts;
         mediaAnalysis = analysis.media;
         cleanupPlan = analysis.cleanupPlan;
-        rebuildFontDropdown();
+        rebuildFontDropdowns();
         renderFontAnalysis(analysis.fonts);
         renderMediaAnalysis(mediaAnalysis, analysis.totalSize);
         renderCleanupPreview();
@@ -2190,7 +2332,7 @@
         revokeMediaThumbUrls();
         analysisStack.hidden = true;
         cleanupPanel.hidden = true;
-        rebuildFontDropdown();
+        rebuildFontDropdowns();
       } finally {
         scanningMsg.hidden = true;
         scanningMsg.textContent = "分析中…";
@@ -2266,9 +2408,9 @@
         createBackupInDirectory(dirHandle, originalFile)
       );
 
-      const font = getTargetFont();
+      const fonts = getTargetFonts();
       const options = getFinalizeOptions();
-      const result = await finalizePptx(originalFile, font, options);
+      const result = await finalizePptx(originalFile, fonts, options);
       await runFsOp(() => writeBlobToHandle(sourceFileHandle, result.blob));
 
       selectedFile = new File([result.blob], originalFile.name, {
@@ -2281,7 +2423,7 @@
         pptxFonts = analysis.fonts;
         mediaAnalysis = analysis.media;
         cleanupPlan = analysis.cleanupPlan;
-        rebuildFontDropdown();
+        rebuildFontDropdowns();
         renderFontAnalysis(analysis.fonts);
         renderMediaAnalysis(mediaAnalysis, analysis.totalSize);
         renderCleanupPreview();
@@ -2346,7 +2488,8 @@
       }
 
       statsEl.innerHTML = `
-        <dt>対象フォント</dt><dd>${escapeHtml(stats.targetFont)}</dd>
+        <dt>タイトルフォント</dt><dd>${escapeHtml(stats.titleFont)}</dd>
+        <dt>本文フォント</dt><dd>${escapeHtml(stats.bodyFont)}</dd>
         <dt>PPTX 内フォント</dt><dd>${sourceList}</dd>
         <dt>typeface 置換数</dt><dd>${stats.replacements}</dd>
         <dt>変更 XML 数</dt><dd>${stats.filesChanged}</dd>
@@ -2374,10 +2517,13 @@
     }
 
     function resetFontSelection() {
-      selectedFont = DEFAULT_FONT;
-      customFontInput.value = "";
-      customFontInput.hidden = true;
-      rebuildFontDropdown();
+      selectedTitleFont = DEFAULT_FONT;
+      selectedBodyFont = DEFAULT_FONT;
+      titleCustomFontInput.value = "";
+      titleCustomFontInput.hidden = true;
+      bodyCustomFontInput.value = "";
+      bodyCustomFontInput.hidden = true;
+      rebuildFontDropdowns();
     }
 
     function clearAll() {
@@ -2403,9 +2549,9 @@
       downloadBtn.textContent = "仕上げ中…";
 
       try {
-        const font = getTargetFont();
+        const fonts = getTargetFonts();
         const options = getFinalizeOptions();
-        const result = await finalizePptx(selectedFile, font, options);
+        const result = await finalizePptx(selectedFile, fonts, options);
         const outputName = outputFilename(selectedFile.name);
         downloadBlob(result.blob, outputName);
         renderStats({ ...result, outputName, saveMode: "download" });
@@ -2488,24 +2634,34 @@
     });
 
     clearBtn.addEventListener("click", clearAll);
-    fontSelect.addEventListener("change", onFontSelectChange);
-    customFontInput.addEventListener("input", () => {
-      selectedFont = customFontInput.value.trim() || DEFAULT_FONT;
-    });
+    bindFontPicker(
+      titleFontSelect,
+      titleCustomFontInput,
+      () => selectedTitleFont,
+      (value) => { selectedTitleFont = value; }
+    );
+    bindFontPicker(
+      bodyFontSelect,
+      bodyCustomFontInput,
+      () => selectedBodyFont,
+      (value) => { selectedBodyFont = value; }
+    );
     downloadBtn.addEventListener("click", runDownload);
     overwriteBtn.addEventListener("click", runOverwrite);
 
-    customFontInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && selectedFile && !downloadBtn.disabled) {
-        if (sourceFileHandle && !overwriteBtn.disabled) {
-          runOverwrite();
-        } else {
-          runDownload();
+    [titleCustomFontInput, bodyCustomFontInput].forEach((input) => {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && selectedFile && !downloadBtn.disabled) {
+          if (sourceFileHandle && !overwriteBtn.disabled) {
+            runOverwrite();
+          } else {
+            runDownload();
+          }
         }
-      }
+      });
     });
 
-    rebuildFontDropdown();
+    rebuildFontDropdowns();
     setActionState();
   </script>
 </body>
