@@ -6,7 +6,8 @@ PowerPoint (`.pptx`) の仕上げをブラウザ内で行うツール。ファ�
 
 画面下部にバージョン（例: `v1.3.0`）が表示されます。
 
-リポジトリ構成: `docs/index.html`（UI）+ `docs/app.js`（処理）+ `docs/version.json`（バージョン）。
+リポジトリ構成: `docs/index.html`（UI）+ `docs/app.js`（処理）+ `docs/version.json`（バージョン）。  
+変更履歴は [CHANGELOG.md](./CHANGELOG.md) を参照。
 
 ## 機能
 
