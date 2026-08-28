@@ -994,6 +994,9 @@ async function computeStructureFreedMedia(zip, layoutsToRemove, mastersToRemove)
       path,
       name: partFileName(path),
       size: zipEntryExists(zip, path) ? getZipEntrySize(zip.files[path]) : 0,
+      compressedSize: zipEntryExists(zip, path)
+        ? getZipEntryCompressedSize(zip.files[path])
+        : 0,
       missing: !zipEntryExists(zip, path),
     }))
     .sort((a, b) => b.size - a.size || Number(a.missing) - Number(b.missing));
@@ -1001,6 +1004,7 @@ async function computeStructureFreedMedia(zip, layoutsToRemove, mastersToRemove)
   return {
     items,
     totalSize: items.reduce((sum, item) => sum + item.size, 0),
+    totalCompressedSize: items.reduce((sum, item) => sum + item.compressedSize, 0),
     missingCount: items.filter((item) => item.missing).length,
     paths: new Set(items.filter((item) => zipEntryExists(zip, item.path)).map((item) => item.path)),
   };
@@ -1464,10 +1468,11 @@ function renderCleanupPreview() {
       `${cleanupPlan.slideOrphanMedia.missingCount ? `、参照のみ ${cleanupPlan.slideOrphanMedia.missingCount} 件` : ""}）`
     : "0 B（0 件）";
   const structureMedia = cleanupPlan.structureFreedMedia;
+  const structureMediaPart = structureMedia.items.length
+    ? ` + 関連メディア ${structureMedia.items.length} 件（${formatBytes(structureMedia.totalCompressedSize)}）`
+    : "";
   structurePreview.textContent =
-    `${cleanupPlan.unusedLayoutCount} レイアウト + ${cleanupPlan.unusedMasterCount} マスター` +
-    `（合計 ${cleanupPlan.layoutsToRemove.length} レイアウト削除、${cleanupPlan.mastersToRemove.length} マスター削除` +
-    `${structureMedia.items.length ? `、メディア ${formatBytes(structureMedia.totalSize)}（${structureMedia.items.length} 件）` : ""}）`;
+    `${cleanupPlan.unusedLayoutCount} レイアウト + ${cleanupPlan.unusedMasterCount} マスター${structureMediaPart}`;
   notesPreview.textContent = cleanupPlan.notes.count
     ? `${cleanupPlan.notes.count} 件（${formatBytes(cleanupPlan.notes.bytes)}）`
     : "0 件";
@@ -1663,7 +1668,7 @@ function renderMediaAnalysis(analysis, totalFileSize) {
     ? ((analysis.orphanMediaSize / analysis.totalMediaSize) * 100).toFixed(1)
     : "0";
   mediaAnalysisBadge.textContent =
-    `圧縮 ${formatBytes(analysis.totalMediaCompressedSize)} / 展開 ${formatBytes(analysis.totalMediaSize)}`;
+    `${formatBytes(analysis.totalMediaCompressedSize)} / 未使用メディア ${formatBytes(analysis.orphanMediaCompressedSize)}`;
   mediaSummary.textContent =
     `ファイルサイズ: ${formatBytes(totalFileSize)} / ` +
     `メディア（圧縮後）: ${formatBytes(analysis.totalMediaCompressedSize)} / ` +
@@ -1748,6 +1753,9 @@ async function finalizePptx(file, fonts, options) {
 
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const plan = await computeCleanupPlan(zip);
+  const embeddedMap = await mapEmbeddedFontFileSizes(zip);
+  const embeddedFontKinds = embeddedMap.size;
+  const embeddedFontBytes = [...embeddedMap.values()].reduce((sum, item) => sum + item.bytes, 0);
 
   const fontStats = await applyFontReplaceToZip(zip, fonts);
 
@@ -1786,6 +1794,8 @@ async function finalizePptx(file, fonts, options) {
     replacements: fontStats.replacements,
     filesChanged: fontStats.filesChanged,
     embeddedFontsRemoved: fontStats.embeddedFontsRemoved,
+    embeddedFontKinds,
+    embeddedFontBytes,
     layoutsRemoved: structureStats.layoutsRemoved,
     mastersRemoved: structureStats.mastersRemoved,
     structureMediaRemoved: structureStats.mediaRemoved,
@@ -1966,9 +1976,10 @@ function hideError() {
 }
 
 function renderStats(stats) {
-  const sourceList = stats.sourceFonts.length
-    ? stats.sourceFonts.map(escapeHtml).join(", ")
-    : "（なし）";
+  const convertedFontCount = stats.sourceFonts.length;
+  const embeddedLine = stats.embeddedFontKinds > 0
+    ? `${stats.embeddedFontKinds} 種類（${formatBytes(stats.embeddedFontBytes)}）`
+    : "0 種類";
   const backupLine = stats.backupName
     ? `<dt>バックアップ</dt><dd>${escapeHtml(stats.backupName)}（元ファイルと同じフォルダ）</dd>`
     : "";
