@@ -277,6 +277,29 @@
       padding: 0;
       overflow: hidden;
     }
+    .file-analysis {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .file-analysis .section-title {
+      margin-bottom: 0.5rem;
+    }
+    .file-stats {
+      display: grid;
+      grid-template-columns: minmax(7rem, 36%) 1fr;
+      column-gap: 1rem;
+      row-gap: 0.25rem;
+      font-size: 0.9rem;
+      margin: 0;
+    }
+    .file-stats dt {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .file-stats dd {
+      margin: 0;
+    }
     .analysis-stack .analysis-fold {
       border: none;
       border-radius: 0;
@@ -481,6 +504,15 @@
     </section>
 
     <section class="panel analysis-stack" id="analysisStack" hidden>
+      <div class="file-analysis" id="fileAnalysis">
+        <h2 class="section-title">ファイル分析</h2>
+        <dl class="file-stats">
+          <dt>ファイルサイズ</dt>
+          <dd id="fileAnalysisSize">—</dd>
+          <dt>スライド数</dt>
+          <dd id="fileAnalysisSlides">—</dd>
+        </dl>
+      </div>
       <details class="analysis-fold" id="fontAnalysisFold">
         <summary>
           <span>フォント分析</span>
@@ -516,8 +548,7 @@
               <thead>
                 <tr>
                   <th>ファイル</th>
-                  <th>展開後</th>
-                  <th>圧縮後</th>
+                  <th>サイズ</th>
                   <th>使用スライド</th>
                 </tr>
               </thead>

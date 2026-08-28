@@ -66,6 +66,8 @@ const resultPanel = document.getElementById("resultPanel");
 const statsEl = document.getElementById("stats");
 const fsNote = document.getElementById("fsNote");
 const analysisStack = document.getElementById("analysisStack");
+const fileAnalysisSize = document.getElementById("fileAnalysisSize");
+const fileAnalysisSlides = document.getElementById("fileAnalysisSlides");
 const fontAnalysisBadge = document.getElementById("fontAnalysisBadge");
 const fontSummary = document.getElementById("fontSummary");
 const fontTableBody = document.getElementById("fontTableBody");
@@ -1488,6 +1490,12 @@ function renderCleanupPreview() {
   }
 }
 
+function renderFileAnalysis(totalFileSize, slideCount) {
+  analysisStack.hidden = false;
+  fileAnalysisSize.textContent = formatBytes(totalFileSize);
+  fileAnalysisSlides.textContent = `${slideCount} 枚`;
+}
+
 function renderFontAnalysis(fonts) {
   if (!fonts || fonts.length === 0) {
     analysisStack.hidden = false;
@@ -1648,33 +1656,29 @@ async function analyzePptxFile(file) {
   return { fonts, media, cleanupPlan: plan, totalSize: file.size };
 }
 
-function renderMediaAnalysis(analysis, totalFileSize) {
+function renderMediaAnalysis(analysis) {
   if (!analysis || analysis.items.length === 0) {
-    analysisStack.hidden = false;
-    mediaAnalysisBadge.textContent = totalFileSize
-      ? "メディアなし"
-      : "—";
-    mediaSummary.textContent = totalFileSize
-      ? `ファイル合計: ${formatBytes(totalFileSize)} — ppt/media/ は空です`
-      : "";
+    mediaAnalysisBadge.textContent = "メディアなし";
+    mediaSummary.textContent = "ppt/media/ 内のメディアはありません。";
     mediaTableBody.innerHTML = "";
     mediaEmpty.hidden = false;
     return;
   }
 
-  analysisStack.hidden = false;
   mediaEmpty.hidden = true;
-  const orphanPct = analysis.totalMediaSize > 0
-    ? ((analysis.orphanMediaSize / analysis.totalMediaSize) * 100).toFixed(1)
-    : "0";
   mediaAnalysisBadge.textContent =
     `${formatBytes(analysis.totalMediaCompressedSize)} / 未使用メディア ${formatBytes(analysis.orphanMediaCompressedSize)}`;
-  mediaSummary.textContent =
-    `ファイルサイズ: ${formatBytes(totalFileSize)} / ` +
-    `メディア（圧縮後）: ${formatBytes(analysis.totalMediaCompressedSize)} / ` +
-    `メディア（展開後）: ${formatBytes(analysis.totalMediaSize)} / ` +
-    `孤立メディア: ${formatBytes(analysis.orphanMediaCompressedSize)} 圧縮・${formatBytes(analysis.orphanMediaSize)} 展開（${orphanPct}%、${analysis.orphanCount} 件） / ` +
-    `スライド数: ${analysis.slideCount}`;
+
+  const previewableCount = analysis.items.filter((item) => item.isPreviewable).length;
+  if (analysis.items.length > 30) {
+    mediaSummary.textContent = previewableCount > 0
+      ? "サイズ上位 30 件。画像ファイル名ホバーでプレビュー。"
+      : "サイズ上位 30 件。";
+  } else {
+    mediaSummary.textContent = previewableCount > 0
+      ? `${analysis.items.length} 件。画像ファイル名ホバーでプレビュー。`
+      : `${analysis.items.length} 件。`;
+  }
 
   mediaTableBody.innerHTML = analysis.items
     .slice(0, 30)
@@ -1688,25 +1692,11 @@ function renderMediaAnalysis(analysis, totalFileSize) {
         : `<td class="media-name">${escapeHtml(item.name)}</td>`;
       return `<tr${rowStyle}>
         ${nameCell}
-        <td class="size">${formatBytes(item.size)}</td>
         <td class="size-compressed">${formatBytes(item.compressedSize)}</td>
         <td class="slides">${slideText}</td>
       </tr>`;
     })
     .join("");
-
-  const previewableCount = analysis.items.filter((item) => item.isPreviewable).length;
-  if (previewableCount > 0) {
-    mediaSummary.textContent += " / 画像ファイル名ホバーでプレビュー";
-  }
-
-  if (analysis.items.length > 30) {
-    mediaSummary.textContent += " / 表示: サイズ上位 30 件";
-  }
-  if (analysis.orphanMediaSize > 0) {
-    mediaSummary.textContent +=
-      " — 孤立メディアは未使用レイアウト等に残った画像です（どのスライドにも表示されていません）";
-  }
 }
 
 async function extractFontsFromPptx(file) {
@@ -1845,8 +1835,9 @@ async function loadFromFile(file, handle = null) {
     mediaAnalysis = analysis.media;
     cleanupPlan = analysis.cleanupPlan;
     rebuildFontDropdowns();
+    renderFileAnalysis(analysis.totalSize, mediaAnalysis?.slideCount ?? 0);
     renderFontAnalysis(analysis.fonts);
-    renderMediaAnalysis(mediaAnalysis, analysis.totalSize);
+    renderMediaAnalysis(mediaAnalysis);
     renderCleanupPreview();
   } catch (err) {
     showError(`分析に失敗しました: ${err.message || err}`);
@@ -1949,8 +1940,9 @@ async function overwriteOriginal() {
     mediaAnalysis = analysis.media;
     cleanupPlan = analysis.cleanupPlan;
     rebuildFontDropdowns();
+    renderFileAnalysis(analysis.totalSize, mediaAnalysis?.slideCount ?? 0);
     renderFontAnalysis(analysis.fonts);
-    renderMediaAnalysis(mediaAnalysis, analysis.totalSize);
+    renderMediaAnalysis(mediaAnalysis);
     renderCleanupPreview();
   } finally {
     scanningMsg.hidden = true;
@@ -2005,7 +1997,7 @@ function renderStats(stats) {
         `、関連メディア ${stats.structureMediaRemoved} 件（${formatBytes(stats.structureMediaBytes)}）`;
     }
     cleanupLines.push(
-      `<dt>未使用レイアウト／マスター</dt><dd>${structureDetail}</dd>`
+      `<dt>未使用レイアウト／マスター削除</dt><dd>${structureDetail}</dd>`
     );
   }
   if (stats.notesRemoved > 0) {
@@ -2022,10 +2014,9 @@ function renderStats(stats) {
   statsEl.innerHTML = `
     <dt>タイトルフォント</dt><dd>${escapeHtml(stats.titleFont)}</dd>
     <dt>本文フォント</dt><dd>${escapeHtml(stats.bodyFont)}</dd>
-    <dt>PPTX 内フォント</dt><dd>${sourceList}</dd>
+    <dt>置換されたフォント</dt><dd>${convertedFontCount} フォント</dd>
     <dt>typeface 置換数</dt><dd>${stats.replacements}</dd>
-    <dt>変更 XML 数</dt><dd>${stats.filesChanged}</dd>
-    <dt>埋め込みフォント削除</dt><dd>${stats.embeddedFontsRemoved} ファイル</dd>
+    <dt>埋め込みフォント削除</dt><dd>${embeddedLine}</dd>
     ${cleanupLines.join("")}
     ${sizeLine}
     ${modeLine}

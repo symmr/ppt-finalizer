@@ -5,6 +5,14 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.3.5] - 2026-08-28
+
+### Changed
+
+- ファイル分析（ファイルサイズ・スライド数）を常時表示
+- メディア分析の説明文を簡素化、表は圧縮サイズのみ
+- 「変換されたフォント」を「置換されたフォント」に変更
+
 ## [1.3.4] - 2026-08-28
 
 ### Changed
@@ -91,6 +99,8 @@
 - ファイルプロパティ削除（オプション）
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 
+[1.3.5]: https://github.com/symmr/ppt-finalizer/compare/v1.3.4...v1.3.5
+[1.3.4]: https://github.com/symmr/ppt-finalizer/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/symmr/ppt-finalizer/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/symmr/ppt-finalizer/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/symmr/ppt-finalizer/compare/v1.3.0...v1.3.1
