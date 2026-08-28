@@ -64,18 +64,15 @@ After editing `web/replace-fonts.html`, sync before deploy:
 Copy-Item -Force "C:\Users\syamamur\.cursor\skills\ppt-replace-fonts\web\replace-fonts.html" "C:\Users\syamamur\.cursor\skills\ppt-replace-fonts\docs\index.html"
 ```
 
-Deploy (first time):
+Deploy (after `gh auth login`):
 
 ```powershell
 cd "C:\Users\syamamur\.cursor\skills\ppt-replace-fonts"
-git init
-git add docs/index.html .gitignore SKILL.md scripts/
-git commit -m "Add PPT Finalizer GitHub Pages site"
-gh repo create ppt-finalizer --public --source=. --remote=origin --push
-gh api repos/{owner}/ppt-finalizer/pages -X POST -f build_type=legacy -f source[branch]=main -f source[path]=/docs
+.\deploy.ps1
 ```
 
-Public URL example: `https://<user>.github.io/ppt-finalizer/`
+Public URL: `https://symmr.github.io/ppt-finalizer/`
+Repo: `https://github.com/symmr/ppt-finalizer`
 
 Notes:
 
