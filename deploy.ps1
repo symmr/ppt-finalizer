@@ -21,7 +21,8 @@ if ($dirty) {
     git commit -m "Sync docs/index.html from web/replace-fonts.html"
 }
 
-if (-not (git remote get-url origin 2>$null)) {
+$originUrl = git remote get-url origin 2>$null
+if (-not $originUrl) {
     Write-Host "Creating public repo symmr/ppt-finalizer ..."
     gh repo create symmr/ppt-finalizer --public --source=. --remote=origin --push --description "Browser-side PowerPoint (.pptx) finalizer"
 } else {
