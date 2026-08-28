@@ -93,6 +93,12 @@
       gap: 0.85rem;
       margin-top: 1.25rem;
     }
+    .font-options .check-row {
+      margin-bottom: 0.15rem;
+    }
+    .font-options.is-disabled .font-row {
+      opacity: 0.55;
+    }
     .font-row label {
       display: block;
       font-size: 0.85rem;
@@ -469,7 +475,17 @@
       </p>
       <input type="file" id="fileInput" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
 
-      <section class="font-options">
+      <section class="panel font-options" id="fontOptionsPanel">
+        <div class="cleanup-options-header">
+          <h2 class="section-title">フォント統一</h2>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" id="optReplaceFonts" checked>
+          <span>
+            タイトル／本文フォントを統一する
+            <div class="check-desc">チェックを外すと、フォントは元のまま変更しません</div>
+          </span>
+        </label>
         <div class="font-row">
           <label for="titleFontSelect">タイトル</label>
           <select id="titleFontSelect"></select>

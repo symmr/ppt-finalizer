@@ -32,6 +32,8 @@ let selectedBodyFont = DEFAULT_FONT;
 let pptxZipCache = null;
 const mediaThumbUrlCache = new Map();
 
+const fontOptionsPanel = document.getElementById("fontOptionsPanel");
+const optReplaceFonts = document.getElementById("optReplaceFonts");
 const titleFontSelect = document.getElementById("titleFontSelect");
 const titleCustomFontInput = document.getElementById("titleCustomFontInput");
 const bodyFontSelect = document.getElementById("bodyFontSelect");
@@ -232,6 +234,9 @@ function loadSettings() {
     if (typeof settings.bodyFont === "string" && settings.bodyFont.trim()) {
       selectedBodyFont = settings.bodyFont.trim();
     }
+    if (typeof settings.replaceFonts === "boolean") {
+      optReplaceFonts.checked = settings.replaceFonts;
+    }
     if (typeof settings.removeOrphanMedia === "boolean") {
       optRemoveOrphanMedia.checked = settings.removeOrphanMedia;
     }
@@ -254,6 +259,7 @@ function saveSettings() {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({
       titleFont: getFontFromPicker(titleFontSelect, titleCustomFontInput),
       bodyFont: getFontFromPicker(bodyFontSelect, bodyCustomFontInput),
+      replaceFonts: optReplaceFonts.checked,
       removeOrphanMedia: optRemoveOrphanMedia.checked,
       removeUnusedStructure: optRemoveUnusedStructure.checked,
       removeNotes: optRemoveNotes.checked,
@@ -389,6 +395,7 @@ async function createBackupInDirectory(dirHandle, originalFile) {
 
 function getFinalizeOptions() {
   return {
+    replaceFonts: optReplaceFonts.checked,
     removeOrphanMedia: optRemoveOrphanMedia.checked,
     removeUnusedStructure: optRemoveUnusedStructure.checked,
     removeNotes: optRemoveNotes.checked,
@@ -578,7 +585,10 @@ async function finalizePptx(file, fonts, options) {
   const embeddedFontKinds = embeddedMap.size;
   const embeddedFontBytes = [...embeddedMap.values()].reduce((sum, item) => sum + item.bytes, 0);
 
-  const fontStats = await applyFontReplaceToZip(zip, fonts);
+  let fontStats = { replacements: 0, filesChanged: 0, embeddedFontsRemoved: 0 };
+  if (options.replaceFonts) {
+    fontStats = await applyFontReplaceToZip(zip, fonts);
+  }
 
   let structureStats = { layoutsRemoved: 0, mastersRemoved: 0, mediaRemoved: 0, mediaBytes: 0 };
   if (options.removeUnusedStructure) {
@@ -628,6 +638,7 @@ async function finalizePptx(file, fonts, options) {
     propertiesCleared: propertiesStats.cleared,
     titleFont,
     bodyFont,
+    fontsReplaced: options.replaceFonts,
     targetFont: bodyFont,
     sourceFonts: pptxFonts.map((f) => f.name),
     originalSize: file.size,
@@ -842,12 +853,16 @@ function renderStats(stats) {
     );
   }
 
+  const fontLines = stats.fontsReplaced
+    ? `<dt>タイトルフォント</dt><dd>${escapeHtml(stats.titleFont)}</dd>
+       <dt>本文フォント</dt><dd>${escapeHtml(stats.bodyFont)}</dd>
+       <dt>置換されたフォント</dt><dd>${convertedFontCount} フォント</dd>
+       <dt>typeface 置換数</dt><dd>${stats.replacements}</dd>
+       <dt>埋め込みフォント削除</dt><dd>${embeddedLine}</dd>`
+    : `<dt>フォント統一</dt><dd>未実施（元のフォントのまま）</dd>`;
+
   statsEl.innerHTML = `
-    <dt>タイトルフォント</dt><dd>${escapeHtml(stats.titleFont)}</dd>
-    <dt>本文フォント</dt><dd>${escapeHtml(stats.bodyFont)}</dd>
-    <dt>置換されたフォント</dt><dd>${convertedFontCount} フォント</dd>
-    <dt>typeface 置換数</dt><dd>${stats.replacements}</dd>
-    <dt>埋め込みフォント削除</dt><dd>${embeddedLine}</dd>
+    ${fontLines}
     ${cleanupLines.join("")}
     ${sizeLine}
     ${modeLine}
@@ -925,6 +940,21 @@ async function runOverwrite() {
   }
 }
 
+function updateFontOptionsState() {
+  const enabled = optReplaceFonts.checked;
+  titleFontSelect.disabled = !enabled;
+  titleCustomFontInput.disabled = !enabled;
+  bodyFontSelect.disabled = !enabled;
+  bodyCustomFontInput.disabled = !enabled;
+  fontOptionsPanel.classList.toggle("is-disabled", !enabled);
+}
+
+function onFontReplaceToggle() {
+  updateFontOptionsState();
+  saveSettings();
+  updateReductionEstimate();
+}
+
 function onCleanupOptionChange() {
   saveSettings();
   renderCleanupPreview();
@@ -942,6 +972,7 @@ optRemoveUnusedStructure.addEventListener("change", onCleanupOptionChange);
 optRemoveNotes.addEventListener("change", onCleanupOptionChange);
 optRemoveProperties.addEventListener("change", onCleanupOptionChange);
 uncheckAllOptionsBtn.addEventListener("click", uncheckAllCleanupOptions);
+optReplaceFonts.addEventListener("change", onFontReplaceToggle);
 
 mediaTableBody.addEventListener("mouseover", (event) => {
   const cell = event.target.closest(".media-name[data-path]");
@@ -1020,6 +1051,7 @@ overwriteBtn.addEventListener("click", runOverwrite);
 
 loadSettings();
 rebuildFontDropdowns();
+updateFontOptionsState();
 setActionState();
 showAppVersion();
 
