@@ -33,6 +33,7 @@ const REL_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/r
 const REL_NOTES_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster";
 const REL_FONT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/font";
 const MEDIA_REL_MARKERS = ["/image", "/video", "/audio", "/media"];
+const SETTINGS_STORAGE_KEY = "ppt-finalizer-settings";
 
 const supportsFsAccess = "showOpenFilePicker" in window;
 
@@ -42,6 +43,7 @@ let parentDirHandle = null;
 let pptxFonts = [];
 let mediaAnalysis = null;
 let cleanupPlan = null;
+let currentFileSize = 0;
 let selectedTitleFont = DEFAULT_FONT;
 let selectedBodyFont = DEFAULT_FONT;
 let pptxZipCache = null;
@@ -68,6 +70,7 @@ const fsNote = document.getElementById("fsNote");
 const analysisStack = document.getElementById("analysisStack");
 const fileAnalysisSize = document.getElementById("fileAnalysisSize");
 const fileAnalysisSlides = document.getElementById("fileAnalysisSlides");
+const fileAnalysisEstimate = document.getElementById("fileAnalysisEstimate");
 const fontAnalysisBadge = document.getElementById("fontAnalysisBadge");
 const fontSummary = document.getElementById("fontSummary");
 const fontTableBody = document.getElementById("fontTableBody");
@@ -398,6 +401,49 @@ function getTargetFonts() {
   };
 }
 
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return;
+    const settings = JSON.parse(raw);
+    if (typeof settings.titleFont === "string" && settings.titleFont.trim()) {
+      selectedTitleFont = settings.titleFont.trim();
+    }
+    if (typeof settings.bodyFont === "string" && settings.bodyFont.trim()) {
+      selectedBodyFont = settings.bodyFont.trim();
+    }
+    if (typeof settings.removeOrphanMedia === "boolean") {
+      optRemoveOrphanMedia.checked = settings.removeOrphanMedia;
+    }
+    if (typeof settings.removeUnusedStructure === "boolean") {
+      optRemoveUnusedStructure.checked = settings.removeUnusedStructure;
+    }
+    if (typeof settings.removeNotes === "boolean") {
+      optRemoveNotes.checked = settings.removeNotes;
+    }
+    if (typeof settings.removeProperties === "boolean") {
+      optRemoveProperties.checked = settings.removeProperties;
+    }
+  } catch {
+    /* ignore corrupt settings */
+  }
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({
+      titleFont: getFontFromPicker(titleFontSelect, titleCustomFontInput),
+      bodyFont: getFontFromPicker(bodyFontSelect, bodyCustomFontInput),
+      removeOrphanMedia: optRemoveOrphanMedia.checked,
+      removeUnusedStructure: optRemoveUnusedStructure.checked,
+      removeNotes: optRemoveNotes.checked,
+      removeProperties: optRemoveProperties.checked,
+    }));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 function bindFontPicker(selectEl, customInput, getSelected, setSelected) {
   selectEl.addEventListener("change", () => {
     if (selectEl.value === CUSTOM_VALUE) {
@@ -411,9 +457,11 @@ function bindFontPicker(selectEl, customInput, getSelected, setSelected) {
       customInput.hidden = true;
       setSelected(selectEl.value);
     }
+    saveSettings();
   });
   customInput.addEventListener("input", () => {
     setSelected(customInput.value.trim() || DEFAULT_FONT);
+    saveSettings();
   });
 }
 
@@ -948,6 +996,9 @@ async function computePackageOrphanMedia(zip) {
       path,
       name: partFileName(path),
       size: zipEntryExists(zip, path) ? getZipEntrySize(zip.files[path]) : 0,
+      compressedSize: zipEntryExists(zip, path)
+        ? getZipEntryCompressedSize(zip.files[path])
+        : 0,
       missing: !zipEntryExists(zip, path),
     }))
     .sort((a, b) => b.size - a.size || Number(a.missing) - Number(b.missing));
@@ -955,6 +1006,7 @@ async function computePackageOrphanMedia(zip) {
   return {
     items,
     totalSize: items.reduce((sum, item) => sum + item.size, 0),
+    totalCompressedSize: items.reduce((sum, item) => sum + item.compressedSize, 0),
     missingCount: items.filter((item) => item.missing).length,
     paths: new Set(items.filter((item) => zipEntryExists(zip, item.path)).map((item) => item.path)),
   };
@@ -1016,15 +1068,21 @@ async function computeNotesInfo(zip) {
   const paths = Object.keys(zip.files).filter(
     (path) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(path)
   );
+  const masterPaths = Object.keys(zip.files).filter(
+    (path) => /^ppt\/notesMasters\/notesMaster\d+\.xml$/.test(path)
+  );
   let bytes = 0;
-  for (const path of paths) {
+  let compressedBytes = 0;
+  for (const path of [...paths, ...masterPaths]) {
     bytes += getZipEntrySize(zip.files[path]);
+    compressedBytes += getZipEntryCompressedSize(zip.files[path]);
     const relsPath = relsPathForPart(path);
     if (zip.files[relsPath]) {
       bytes += getZipEntrySize(zip.files[relsPath]);
+      compressedBytes += getZipEntryCompressedSize(zip.files[relsPath]);
     }
   }
-  return { count: paths.length, bytes, paths };
+  return { count: paths.length, bytes, compressedBytes, paths };
 }
 
 function readXmlElementText(xml, fullTag) {
@@ -1094,7 +1152,19 @@ async function scanDocumentProperties(zip) {
     fields.push({ label: "サムネイル", value: "あり" });
   }
 
-  return { fields, fieldCount: fields.length };
+  let removableBytes = 0;
+  const thumbFile = zip.file("docProps/thumbnail.jpeg");
+  if (thumbFile) {
+    removableBytes += getZipEntryCompressedSize(thumbFile);
+  }
+  if (customFile) {
+    const customXml = await customFile.async("string");
+    if ((customXml.match(/<property\b/gi) || []).length > 0) {
+      removableBytes += Math.max(0, getZipEntryCompressedSize(customFile) - 180);
+    }
+  }
+
+  return { fields, fieldCount: fields.length, removableBytes };
 }
 
 async function clearDocumentProperties(zip) {
@@ -1454,6 +1524,72 @@ function getFinalizeOptions() {
   };
 }
 
+function zipEntryCompressedBytes(zip, path) {
+  if (!zipEntryExists(zip, path)) return 0;
+  return getZipEntryCompressedSize(zip.files[path]);
+}
+
+function computeReductionEstimate(plan, options, zip) {
+  if (!plan || !zip) return 0;
+
+  let bytes = 0;
+
+  for (const path of Object.keys(zip.files)) {
+    if (path.startsWith("ppt/fonts/") && !zip.files[path].dir) {
+      bytes += getZipEntryCompressedSize(zip.files[path]);
+    }
+  }
+
+  if (options.removeOrphanMedia) {
+    for (const item of plan.slideOrphanMedia.items) {
+      if (!item.missing) {
+        bytes += item.compressedSize || zipEntryCompressedBytes(zip, item.path);
+      }
+    }
+  }
+
+  if (options.removeUnusedStructure) {
+    for (const path of plan.layoutsToRemove) {
+      bytes += zipEntryCompressedBytes(zip, path);
+      bytes += zipEntryCompressedBytes(zip, relsPathForPart(path));
+    }
+    for (const path of plan.mastersToRemove) {
+      bytes += zipEntryCompressedBytes(zip, path);
+      bytes += zipEntryCompressedBytes(zip, relsPathForPart(path));
+    }
+    bytes += plan.structureFreedMedia.totalCompressedSize;
+  }
+
+  if (options.removeNotes && plan.notes.count > 0) {
+    bytes += plan.notes.compressedBytes || plan.notes.bytes;
+  }
+
+  if (options.removeProperties && plan.properties.removableBytes > 0) {
+    bytes += plan.properties.removableBytes;
+  }
+
+  return bytes;
+}
+
+function updateReductionEstimate() {
+  if (!fileAnalysisEstimate) return;
+  if (!cleanupPlan || !pptxZipCache || !currentFileSize) {
+    fileAnalysisEstimate.textContent = "—";
+    return;
+  }
+
+  const bytes = computeReductionEstimate(cleanupPlan, getFinalizeOptions(), pptxZipCache);
+  if (bytes <= 0) {
+    fileAnalysisEstimate.textContent = "なし";
+    return;
+  }
+
+  const after = Math.max(0, currentFileSize - bytes);
+  const pct = currentFileSize > 0 ? ((bytes / currentFileSize) * 100).toFixed(1) : "0";
+  fileAnalysisEstimate.textContent =
+    `約 ${formatBytes(bytes)}（${pct}%・仕上げ後 ${formatBytes(after)} 前後）`;
+}
+
 function renderCleanupPreview() {
   if (!cleanupPlan) {
     cleanupPanel.hidden = true;
@@ -1488,12 +1624,15 @@ function renderCleanupPreview() {
   } else {
     propertiesPreview.textContent = "0 項目";
   }
+  updateReductionEstimate();
 }
 
 function renderFileAnalysis(totalFileSize, slideCount) {
+  currentFileSize = totalFileSize;
   analysisStack.hidden = false;
   fileAnalysisSize.textContent = formatBytes(totalFileSize);
   fileAnalysisSlides.textContent = `${slideCount} 枚`;
+  updateReductionEstimate();
 }
 
 function renderFontAnalysis(fonts) {
@@ -2039,20 +2178,11 @@ function outputFilename(originalName) {
   return `${originalName.replace(/\.pptx$/i, "")}_finalized.pptx`;
 }
 
-function resetFontSelection() {
-  selectedTitleFont = DEFAULT_FONT;
-  selectedBodyFont = DEFAULT_FONT;
-  titleCustomFontInput.value = "";
-  titleCustomFontInput.hidden = true;
-  bodyCustomFontInput.value = "";
-  bodyCustomFontInput.hidden = true;
-  rebuildFontDropdowns();
-}
-
 function clearAll() {
   selectedFile = null;
   sourceFileHandle = null;
   parentDirHandle = null;
+  currentFileSize = 0;
   fileInput.value = "";
   pptxFonts = [];
   mediaAnalysis = null;
@@ -2061,7 +2191,6 @@ function clearAll() {
   revokeMediaThumbUrls();
   analysisStack.hidden = true;
   cleanupPanel.hidden = true;
-  resetFontSelection();
   loadFromFile(null, null);
 }
 
@@ -2104,10 +2233,15 @@ async function runOverwrite() {
   }
 }
 
-optRemoveOrphanMedia.addEventListener("change", renderCleanupPreview);
-optRemoveUnusedStructure.addEventListener("change", renderCleanupPreview);
-optRemoveNotes.addEventListener("change", renderCleanupPreview);
-optRemoveProperties.addEventListener("change", renderCleanupPreview);
+function onCleanupOptionChange() {
+  saveSettings();
+  renderCleanupPreview();
+}
+
+optRemoveOrphanMedia.addEventListener("change", onCleanupOptionChange);
+optRemoveUnusedStructure.addEventListener("change", onCleanupOptionChange);
+optRemoveNotes.addEventListener("change", onCleanupOptionChange);
+optRemoveProperties.addEventListener("change", onCleanupOptionChange);
 
 mediaTableBody.addEventListener("mouseover", (event) => {
   const cell = event.target.closest(".media-name[data-path]");
@@ -2184,6 +2318,7 @@ overwriteBtn.addEventListener("click", runOverwrite);
   });
 });
 
+loadSettings();
 rebuildFontDropdowns();
 setActionState();
 showAppVersion();

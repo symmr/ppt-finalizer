@@ -5,6 +5,13 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.3.6] - 2026-08-28
+
+### Added
+
+- ファイル分析に削減見込み（整理オプション・埋込フォント削除を反映）
+- フォント選択・整理オプションの設定をブラウザに記憶（localStorage）
+
 ## [1.3.5] - 2026-08-28
 
 ### Changed
@@ -99,6 +106,7 @@
 - ファイルプロパティ削除（オプション）
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 
+[1.3.6]: https://github.com/symmr/ppt-finalizer/compare/v1.3.5...v1.3.6
 [1.3.5]: https://github.com/symmr/ppt-finalizer/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/symmr/ppt-finalizer/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/symmr/ppt-finalizer/compare/v1.3.2...v1.3.3
