@@ -4,7 +4,9 @@ PowerPoint (`.pptx`) の仕上げをブラウザ内で行うツール。ファ�
 
 **https://symmr.github.io/ppt-finalizer/**
 
-画面下部にバージョン（例: `v1.2.0`）が表示されます。
+画面下部にバージョン（例: `v1.3.0`）が表示されます。
+
+リポジトリ構成: `docs/index.html`（UI）+ `docs/app.js`（処理）+ `docs/version.json`（バージョン）。
 
 ## 機能
 
