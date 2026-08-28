@@ -213,8 +213,12 @@
       font-weight: 600;
       white-space: nowrap;
     }
-    .media-table td.size {
+    .media-table td.size,
+    .media-table td.size-compressed {
       white-space: nowrap;
+    }
+    .media-table td.size-compressed {
+      color: var(--muted);
     }
     .media-table td.slides {
       word-break: break-word;
@@ -474,7 +478,8 @@
               <thead>
                 <tr>
                   <th>ファイル</th>
-                  <th>サイズ</th>
+                  <th>展開後</th>
+                  <th>圧縮後</th>
                   <th>使用スライド</th>
                 </tr>
               </thead>
@@ -903,6 +908,16 @@
       return data.length || data.compressedSize || 0;
     }
 
+    function getZipEntryCompressedSize(entry) {
+      if (!entry) return 0;
+      const data = entry._data;
+      if (!data) return 0;
+      if (typeof data.compressedSize === "number" && data.compressedSize >= 0) {
+        return data.compressedSize;
+      }
+      return data.length || 0;
+    }
+
     function zipEntryExists(zip, path) {
       return Boolean(path && zip.files[path] && !zip.files[path].dir);
     }
@@ -1006,7 +1021,11 @@
       const mediaSizes = new Map();
       for (const path of Object.keys(zip.files)) {
         if (!path.startsWith("ppt/media/") || zip.files[path].dir) continue;
-        mediaSizes.set(path, getZipEntrySize(zip.files[path]));
+        const entry = zip.files[path];
+        mediaSizes.set(path, {
+          size: getZipEntrySize(entry),
+          compressedSize: getZipEntryCompressedSize(entry),
+        });
       }
 
       const slideToLayout = new Map();
@@ -1163,31 +1182,42 @@
       }
 
       const items = [...mediaSizes.entries()]
-        .map(([path, size]) => {
+        .map(([path, sizes]) => {
           const usage = mediaUsage.get(path);
           const slides = usage ? sortUsageLabels([...usage]) : [];
           const isOrphan = slides.length > 0 && slides.every(isOrphanUsageLabel);
           return {
             path,
             name: path.split("/").pop(),
-            size,
+            size: sizes.size,
+            compressedSize: sizes.compressedSize,
             slides,
             isOrphan,
             isPreviewable: isPreviewableMediaPath(path),
           };
         })
-        .sort((a, b) => b.size - a.size || a.name.localeCompare(b.name, "ja"));
+        .sort((a, b) =>
+          b.size - a.size ||
+          b.compressedSize - a.compressedSize ||
+          a.name.localeCompare(b.name, "ja")
+        );
 
       const totalMediaSize = items.reduce((sum, item) => sum + item.size, 0);
+      const totalMediaCompressedSize = items.reduce((sum, item) => sum + item.compressedSize, 0);
       const orphanMediaSize = items
         .filter((item) => item.isOrphan)
         .reduce((sum, item) => sum + item.size, 0);
+      const orphanMediaCompressedSize = items
+        .filter((item) => item.isOrphan)
+        .reduce((sum, item) => sum + item.compressedSize, 0);
       const orphanCount = items.filter((item) => item.isOrphan).length;
 
       return {
         items,
         totalMediaSize,
+        totalMediaCompressedSize,
         orphanMediaSize,
+        orphanMediaCompressedSize,
         orphanCount,
         slideCount: slidePathToNum.size,
       };
@@ -1981,11 +2011,12 @@
         ? ((analysis.orphanMediaSize / analysis.totalMediaSize) * 100).toFixed(1)
         : "0";
       mediaAnalysisBadge.textContent =
-        `${formatBytes(analysis.totalMediaSize)} / 孤立 ${formatBytes(analysis.orphanMediaSize)}`;
+        `圧縮 ${formatBytes(analysis.totalMediaCompressedSize)} / 展開 ${formatBytes(analysis.totalMediaSize)}`;
       mediaSummary.textContent =
         `ファイルサイズ: ${formatBytes(totalFileSize)} / ` +
+        `メディア（圧縮後）: ${formatBytes(analysis.totalMediaCompressedSize)} / ` +
         `メディア（展開後）: ${formatBytes(analysis.totalMediaSize)} / ` +
-        `孤立メディア: ${formatBytes(analysis.orphanMediaSize)}（${orphanPct}%、${analysis.orphanCount} 件） / ` +
+        `孤立メディア: ${formatBytes(analysis.orphanMediaCompressedSize)} 圧縮・${formatBytes(analysis.orphanMediaSize)} 展開（${orphanPct}%、${analysis.orphanCount} 件） / ` +
         `スライド数: ${analysis.slideCount}`;
 
       mediaTableBody.innerHTML = analysis.items
@@ -2001,6 +2032,7 @@
           return `<tr${rowStyle}>
             ${nameCell}
             <td class="size">${formatBytes(item.size)}</td>
+            <td class="size-compressed">${formatBytes(item.compressedSize)}</td>
             <td class="slides">${slideText}</td>
           </tr>`;
         })
