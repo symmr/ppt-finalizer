@@ -225,3 +225,33 @@ describe("removeUnusedStructure", () => {
     assert.doesNotMatch(presRels, /slideMaster2\.xml/);
   });
 });
+
+describe("computeReductionEstimate", () => {
+  test("counts embedded font bytes only when replaceFonts is enabled", async () => {
+    const zip = new JSZip();
+    zip.file("ppt/fonts/font1.fntdata", "0123456789");
+    const buffer = await zip.generateAsync({ type: "nodebuffer" });
+    const loaded = await JSZip.loadAsync(buffer);
+
+    const plan = {
+      slideOrphanMedia: { items: [] },
+      layoutsToRemove: [],
+      mastersToRemove: [],
+      structureFreedMedia: { totalCompressedSize: 0 },
+      notes: { count: 0, bytes: 0, compressedBytes: 0 },
+      properties: { removableBytes: 0 },
+    };
+    const baseOptions = {
+      removeOrphanMedia: false,
+      removeUnusedStructure: false,
+      removeNotes: false,
+      removeProperties: false,
+    };
+
+    const withFonts = core.computeReductionEstimate(plan, { ...baseOptions, replaceFonts: true }, loaded);
+    const withoutFonts = core.computeReductionEstimate(plan, { ...baseOptions, replaceFonts: false }, loaded);
+
+    assert.ok(withFonts > 0);
+    assert.equal(withoutFonts, 0);
+  });
+});

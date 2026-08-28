@@ -1152,9 +1152,11 @@ function computeReductionEstimate(plan, options, zip) {
 
   let bytes = 0;
 
-  for (const path of Object.keys(zip.files)) {
-    if (path.startsWith("ppt/fonts/") && !zip.files[path].dir) {
-      bytes += getZipEntryCompressedSize(zip.files[path]);
+  if (options.replaceFonts) {
+    for (const path of Object.keys(zip.files)) {
+      if (path.startsWith("ppt/fonts/") && !zip.files[path].dir) {
+        bytes += getZipEntryCompressedSize(zip.files[path]);
+      }
     }
   }
 
