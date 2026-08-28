@@ -67,6 +67,13 @@ const optRemoveOrphanMedia = document.getElementById("optRemoveOrphanMedia");
 const optRemoveUnusedStructure = document.getElementById("optRemoveUnusedStructure");
 const optRemoveNotes = document.getElementById("optRemoveNotes");
 const optRemoveProperties = document.getElementById("optRemoveProperties");
+const uncheckAllOptionsBtn = document.getElementById("uncheckAllOptionsBtn");
+const cleanupOptionCheckboxes = [
+  optRemoveOrphanMedia,
+  optRemoveUnusedStructure,
+  optRemoveNotes,
+  optRemoveProperties,
+];
 const orphanMediaPreview = document.getElementById("orphanMediaPreview");
 const structurePreview = document.getElementById("structurePreview");
 const structureOptionDesc = document.getElementById("structureOptionDesc");
@@ -923,10 +930,18 @@ function onCleanupOptionChange() {
   renderCleanupPreview();
 }
 
+function uncheckAllCleanupOptions() {
+  for (const checkbox of cleanupOptionCheckboxes) {
+    checkbox.checked = false;
+  }
+  onCleanupOptionChange();
+}
+
 optRemoveOrphanMedia.addEventListener("change", onCleanupOptionChange);
 optRemoveUnusedStructure.addEventListener("change", onCleanupOptionChange);
 optRemoveNotes.addEventListener("change", onCleanupOptionChange);
 optRemoveProperties.addEventListener("change", onCleanupOptionChange);
+uncheckAllOptionsBtn.addEventListener("click", uncheckAllCleanupOptions);
 
 mediaTableBody.addEventListener("mouseover", (event) => {
   const cell = event.target.closest(".media-name[data-path]");
