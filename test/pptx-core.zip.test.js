@@ -224,6 +224,24 @@ describe("removeUnusedStructure", () => {
     const presRels = await zip.files["ppt/_rels/presentation.xml.rels"].async("string");
     assert.doesNotMatch(presRels, /slideMaster2\.xml/);
   });
+
+  test("media used only by the removed unused layout is deleted once the follow-up orphan sweep runs", async () => {
+    // Mirrors the real app flow: finalizePptx() calls removeUnusedStructure()
+    // and then removePackageOrphanMedia() right after, so a layout's media
+    // only becomes "orphan" (and gets swept) once the layout's own .rels
+    // file is gone. image3.png in the fixture is referenced only by the
+    // unused slideLayout2.
+    const zip = await buildFixtureZip();
+    const plan = await core.computeCleanupPlan(zip);
+
+    await core.removeUnusedStructure(zip, plan);
+    const sweep = await core.removePackageOrphanMedia(zip);
+
+    assert.equal(zip.files["ppt/media/image3.png"], undefined);
+    assert.ok(sweep.count >= 1);
+    // media still used directly by a live slide must survive the sweep
+    assert.notEqual(zip.files["ppt/media/image1.png"], undefined);
+  });
 });
 
 describe("computeReductionEstimate", () => {
