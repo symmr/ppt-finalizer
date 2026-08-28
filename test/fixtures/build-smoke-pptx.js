@@ -31,10 +31,16 @@ const PNG_1X1 = Buffer.from(
   "base64"
 );
 
+// Fixed date so re-running this script produces a byte-identical file
+// (JSZip stamps each entry with the current time by default, which would
+// otherwise make every regeneration show up as a spurious git diff).
+const FIXED_DATE = new Date(Date.UTC(2000, 0, 1));
+
 async function build() {
   const zip = new JSZip();
+  const addFile = (path, content) => zip.file(path, content, { date: FIXED_DATE });
 
-  zip.file(
+  addFile(
     "[Content_Types].xml",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
     `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
@@ -44,16 +50,16 @@ async function build() {
     `<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>` +
     `</Types>`
   );
-  zip.file("_rels/.rels", relsXml([rel("rId1", "officeDocument", "ppt/presentation.xml")]));
+  addFile("_rels/.rels", relsXml([rel("rId1", "officeDocument", "ppt/presentation.xml")]));
 
-  zip.file(
+  addFile(
     "ppt/presentation.xml",
     `<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
     `<p:sldMasterIdLst><p:sldMasterId id="1" r:id="rId3"/></p:sldMasterIdLst>` +
     `<p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst>` +
     `</p:presentation>`
   );
-  zip.file(
+  addFile(
     "ppt/_rels/presentation.xml.rels",
     relsXml([
       rel("rId2", "slide", "slides/slide1.xml"),
@@ -61,14 +67,14 @@ async function build() {
     ])
   );
 
-  zip.file(
+  addFile(
     "ppt/slides/slide1.xml",
     `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree>` +
     `<p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:rPr><a:latin typeface="Arial"/></a:rPr><a:t>Hello</a:t></a:r></a:p></p:txBody></p:sp>` +
     `<p:sp><p:nvSpPr><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:rPr><a:latin typeface="Calibri"/></a:rPr><a:t>World</a:t></a:r></a:p></p:txBody></p:sp>` +
     `</p:spTree></p:cSld></p:sld>`
   );
-  zip.file(
+  addFile(
     "ppt/slides/_rels/slide1.xml.rels",
     relsXml([
       rel("rId1", "slideLayout", "../slideLayouts/slideLayout1.xml"),
@@ -76,28 +82,28 @@ async function build() {
     ])
   );
 
-  zip.file("ppt/slideLayouts/slideLayout1.xml", "<p:sldLayout/>");
-  zip.file(
+  addFile("ppt/slideLayouts/slideLayout1.xml", "<p:sldLayout/>");
+  addFile(
     "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
     relsXml([rel("rId1", "slideMaster", "../slideMasters/slideMaster1.xml")])
   );
-  zip.file("ppt/slideLayouts/slideLayout2.xml", "<p:sldLayout/>");
-  zip.file(
+  addFile("ppt/slideLayouts/slideLayout2.xml", "<p:sldLayout/>");
+  addFile(
     "ppt/slideLayouts/_rels/slideLayout2.xml.rels",
     relsXml([rel("rId1", "slideMaster", "../slideMasters/slideMaster1.xml")])
   );
 
-  zip.file("ppt/slideMasters/slideMaster1.xml", "<p:sldMaster/>");
+  addFile("ppt/slideMasters/slideMaster1.xml", "<p:sldMaster/>");
 
-  zip.file("ppt/media/image1.png", PNG_1X1);
-  zip.file("ppt/media/image2.png", PNG_1X1);
+  addFile("ppt/media/image1.png", PNG_1X1);
+  addFile("ppt/media/image2.png", PNG_1X1);
 
-  zip.file(
+  addFile(
     "docProps/core.xml",
     `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/">` +
     `<dc:title>Smoke Test Deck</dc:title><dc:creator>QA Bot</dc:creator></cp:coreProperties>`
   );
-  zip.file(
+  addFile(
     "docProps/app.xml",
     `<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Company>Acme</Company></Properties>`
   );
