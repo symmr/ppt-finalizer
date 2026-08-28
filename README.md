@@ -40,6 +40,8 @@ npm install
 npm test
 ```
 
+手動確認用に `test/fixtures/smoke-test.pptx`（タイトル/本文フォントが異なる・孤立メディアあり・未使用レイアウトありの最小PPTX）を置いています。ブラウザで実際にドロップして動作確認する際に使えます。生成スクリプトは `test/fixtures/build-smoke-pptx.js`（`node test/fixtures/build-smoke-pptx.js` で再生成可能）。
+
 ## ライセンス
 
 MIT
