@@ -379,6 +379,12 @@
       font-size: 0.85rem;
       margin: 0;
     }
+    .app-version {
+      margin: 1.25rem 0 0;
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -520,6 +526,7 @@
       初回上書き時のみ、バックアップ保存用にフォルダ確認ダイアログが出る場合があります（元ファイルと同じフォルダを選んでください）。
       表示には PC に指定フォントがインストールされている必要があります。
     </p>
+    <p class="app-version" id="appVersion" hidden aria-label="アプリバージョン"></p>
   </main>
 
   <div id="mediaThumbTooltip" class="media-thumb-tooltip" hidden aria-hidden="true">
@@ -2674,6 +2681,24 @@
 
     rebuildFontDropdowns();
     setActionState();
+    showAppVersion();
+
+    async function showAppVersion() {
+      const el = document.getElementById("appVersion");
+      if (!el) return;
+      try {
+        const res = await fetch("version.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("version fetch failed");
+        const data = await res.json();
+        const version = String(data.version || "").trim();
+        if (!version) throw new Error("empty version");
+        const released = String(data.released || "").trim();
+        el.textContent = released ? `v${version} (${released})` : `v${version}`;
+        el.hidden = false;
+      } catch {
+        el.hidden = true;
+      }
+    }
   </script>
 </body>
 </html>

@@ -4,6 +4,8 @@ PowerPoint (`.pptx`) の仕上げをブラウザ内で行うツール。ファ�
 
 **https://symmr.github.io/ppt-finalizer/**
 
+画面下部にバージョン（例: `v1.2.0`）が表示されます。
+
 ## 機能
 
 - タイトル／本文フォントの統一（既定: Noto Sans JP）
@@ -22,14 +24,6 @@ PowerPoint (`.pptx`) の仕上げをブラウザ内で行うツール。ファ�
 4. **仕上げてダウンロード** または **仕上げて上書き**
 
 上書き保存は File System Access API 対応ブラウザ（Chrome / Edge）で HTTPS 上のみ利用できます。
-
-## Python CLI（フォント置換のみ）
-
-```powershell
-python scripts/replace_fonts.py "path\to\deck.pptx"
-```
-
-孤立メディア削除などは Web 版を使用してください。
 
 ## ライセンス
 
