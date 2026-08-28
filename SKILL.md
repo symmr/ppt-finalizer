@@ -29,7 +29,10 @@ Open in a browser (file stays local; nothing is uploaded):
 C:\Users\syamamur\.cursor\skills\ppt-replace-fonts\web\replace-fonts.html
 ```
 
-1. Set target font (default: **Noto Sans JP**; presets, PPTX-detected fonts, or custom)
+1. Set **タイトル** / **本文** fonts (default both: **Noto Sans JP**; presets, PPTX-detected fonts, or custom)
+   - Title placeholders (`title`, `ctrTitle`, `subTitle`) and `titleStyle` → title font
+   - Body placeholders, `bodyStyle`, tables/charts/theme leftovers → body font
+   - Free text boxes and shapes without title placeholder → body font
 2. Open or drop a `.pptx`
    - **上書き保存**: **ファイルを開く（上書き可）** (Chrome/Edge), or drag-drop when the browser grants a file handle
    - **別名ダウンロード**: any browser; drop or legacy file picker
