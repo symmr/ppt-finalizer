@@ -1239,8 +1239,7 @@ async function showAppVersion() {
     const data = await res.json();
     const version = String(data.version || "").trim();
     if (!version) throw new Error("empty version");
-    const released = String(data.released || "").trim();
-    el.textContent = released ? `v${version} (${released})` : `v${version}`;
+    el.textContent = `v${version}`;
     line.hidden = false;
   } catch {
     line.hidden = true;
