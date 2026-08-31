@@ -62,6 +62,7 @@ const sideTabResult = document.getElementById("sideTabResult");
 const sideTabAnalysisBtn = document.getElementById("sideTabAnalysisBtn");
 const sideTabResultBtn = document.getElementById("sideTabResultBtn");
 const resultTabBadge = document.getElementById("resultTabBadge");
+const resultEmpty = document.getElementById("resultEmpty");
 const fileAnalysisSize = document.getElementById("fileAnalysisSize");
 const fileAnalysisSlides = document.getElementById("fileAnalysisSlides");
 const reductionBlock = document.getElementById("reductionBlock");
@@ -468,8 +469,8 @@ function getFinalizeOptions() {
   };
 }
 
-function setSideTab(tab) {
-  activeSideTab = tab;
+function applySideTabView() {
+  const tab = activeSideTab;
   if (sideTabAnalysisBtn) {
     sideTabAnalysisBtn.classList.toggle("is-active", tab === "analysis");
     sideTabAnalysisBtn.setAttribute("aria-selected", tab === "analysis" ? "true" : "false");
@@ -480,15 +481,28 @@ function setSideTab(tab) {
   }
   if (sideTabAnalysis) sideTabAnalysis.hidden = tab !== "analysis";
   if (sideTabResult) sideTabResult.hidden = tab !== "result";
-  if (tab === "result" && resultTabBadge) {
-    resultTabBadge.hidden = true;
+
+  if (resultEmpty) {
+    resultEmpty.hidden = tab !== "result" || hasResultContent;
   }
+  if (resultPanel && hasResultContent) {
+    resultPanel.hidden = tab !== "result";
+  } else if (resultPanel) {
+    resultPanel.hidden = true;
+  }
+  if (resultTabBadge) {
+    resultTabBadge.hidden = !hasResultContent || tab === "result";
+  }
+}
+
+function setSideTab(tab) {
+  activeSideTab = tab;
+  applySideTabView();
 }
 
 function updateSideChrome() {
   const hasAnalysis = analysisStack && !analysisStack.hidden;
-  const hasResult = hasResultContent && resultPanel && !resultPanel.hidden;
-  const hasContent = hasAnalysis || hasResult;
+  const hasContent = hasAnalysis || hasResultContent;
 
   if (sidePlaceholder) sidePlaceholder.hidden = hasContent;
   if (sideTabs) sideTabs.hidden = !hasContent;
@@ -499,17 +513,7 @@ function updateSideChrome() {
     return;
   }
 
-  if (activeSideTab === "result" && !hasResult) {
-    setSideTab("analysis");
-  } else if (activeSideTab === "analysis" && !hasAnalysis && hasResult) {
-    setSideTab("result");
-  } else {
-    setSideTab(activeSideTab);
-  }
-
-  if (resultTabBadge) {
-    resultTabBadge.hidden = !(hasResult && activeSideTab !== "result");
-  }
+  applySideTabView();
 }
 
 function updateReductionEstimate() {
@@ -1095,7 +1099,6 @@ function onSideTabClick(event) {
   const tab = event.currentTarget?.dataset?.sideTab;
   if (!tab) return;
   setSideTab(tab);
-  updateSideChrome();
 }
 
 function onCleanupOptionChange() {

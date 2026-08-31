@@ -6,6 +6,14 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.2.1] - 2026-08-31
+
+### Fixed
+
+- 右パネルタブ切替が効かない問題（`display: flex` が `[hidden]` を上書きしていた）
+- 結果タブの青い ● が仕上げ前から表示される問題
+- 仕上げ前に結果タブを開いたとき「仕上げると結果がここに表示されます」と表示
+
 ## [1.2.0] - 2026-08-31
 
 ### Added
@@ -42,6 +50,7 @@
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 - フォント選択・整理オプションの設定記憶（localStorage）
 
+[1.2.1]: https://github.com/symmr/ppt-finalizer/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/symmr/ppt-finalizer/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/symmr/ppt-finalizer/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/symmr/ppt-finalizer/compare/v1.0...v1.1.0

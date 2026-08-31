@@ -134,10 +134,16 @@
       font-size: 0.65rem;
       vertical-align: middle;
     }
+    .side-tab-badge[hidden] {
+      display: none !important;
+    }
     .side-tab-panel {
       display: flex;
       flex-direction: column;
       gap: 1rem;
+    }
+    .side-tab-panel[hidden] {
+      display: none !important;
     }
     .reduction-block {
       padding: 0 1.25rem 1rem;
@@ -824,6 +830,7 @@
           </div>
 
           <div class="side-tab-panel" id="sideTabResult" data-side-panel="result" role="tabpanel" aria-labelledby="sideTabResultBtn" hidden>
+            <p class="analysis-empty" id="resultEmpty">仕上げると結果がここに表示されます。</p>
             <section class="panel" id="resultPanel" hidden>
               <dl class="stats" id="stats"></dl>
             </section>
