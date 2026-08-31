@@ -168,6 +168,25 @@ function hideMediaThumb() {
   mediaThumbImg.removeAttribute("src");
 }
 
+function getMediaPreviewCell(target) {
+  return target?.closest?.(".media-name[data-path], .media-inline-thumb[data-path]");
+}
+
+async function populateInlineMediaThumbs() {
+  const thumbs = mediaTableBody.querySelectorAll(".media-inline-thumb[data-path]");
+  await Promise.all([...thumbs].map(async (span) => {
+    const path = span.dataset.path;
+    span.classList.add("is-loading");
+    const url = await getMediaBlobUrl(path);
+    span.classList.remove("is-loading");
+    if (!url) return;
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = "";
+    span.appendChild(img);
+  }));
+}
+
 function addOption(group, value, label) {
   const option = document.createElement("option");
   option.value = value;
@@ -663,14 +682,13 @@ function renderMediaAnalysis(analysis) {
     `${formatBytes(analysis.totalMediaCompressedSize)} / 未使用メディア ${formatBytes(analysis.orphanMediaCompressedSize)}`;
 
   const previewableCount = analysis.items.filter((item) => item.isPreviewable).length;
+  const previewHint = previewableCount > 0
+    ? "プレビュー列／ホバーで拡大。"
+    : "";
   if (analysis.items.length > 30) {
-    mediaSummary.textContent = previewableCount > 0
-      ? "サイズ上位 30 件。画像ファイル名ホバーでプレビュー。"
-      : "サイズ上位 30 件。";
+    mediaSummary.textContent = `サイズ上位 30 件。${previewHint}`.trim();
   } else {
-    mediaSummary.textContent = previewableCount > 0
-      ? `${analysis.items.length} 件。画像ファイル名ホバーでプレビュー。`
-      : `${analysis.items.length} 件。`;
+    mediaSummary.textContent = `${analysis.items.length} 件。${previewHint}`.trim();
   }
 
   mediaTableBody.innerHTML = analysis.items
@@ -680,16 +698,21 @@ function renderMediaAnalysis(analysis) {
         ? escapeHtml(item.slides.join("、"))
         : '<span style="color:var(--muted)">（参照元不明）</span>';
       const rowStyle = item.isOrphan ? ' style="opacity:0.92"' : "";
+      const thumbCell = item.isPreviewable
+        ? `<td class="media-thumb-cell"><span class="media-inline-thumb" data-path="${escapeHtml(item.path)}" title="ホバーで拡大"></span></td>`
+        : `<td class="media-thumb-cell"></td>`;
       const nameCell = item.isPreviewable
         ? `<td class="media-name media-name--preview" data-path="${escapeHtml(item.path)}" title="ホバーでプレビュー">${escapeHtml(item.name)}</td>`
         : `<td class="media-name">${escapeHtml(item.name)}</td>`;
       return `<tr${rowStyle}>
+        ${thumbCell}
         ${nameCell}
         <td class="size-compressed">${formatBytes(item.compressedSize)}</td>
         <td class="slides">${slideText}</td>
       </tr>`;
     })
     .join("");
+  populateInlineMediaThumbs();
 }
 
 async function extractFontsFromPptx(file) {
@@ -1125,23 +1148,23 @@ if (sideTabAnalysisBtn) sideTabAnalysisBtn.addEventListener("click", onSideTabCl
 if (sideTabResultBtn) sideTabResultBtn.addEventListener("click", onSideTabClick);
 
 mediaTableBody.addEventListener("mouseover", (event) => {
-  const cell = event.target.closest(".media-name[data-path]");
+  const cell = getMediaPreviewCell(event.target);
   if (!cell) return;
   showMediaThumb(cell.dataset.path, event.clientX, event.clientY);
 });
 
 mediaTableBody.addEventListener("mousemove", (event) => {
   if (mediaThumbTooltip.hidden) return;
-  const cell = event.target.closest(".media-name[data-path]");
+  const cell = getMediaPreviewCell(event.target);
   if (!cell) return;
   positionMediaThumbTooltip(event.clientX, event.clientY);
 });
 
 mediaTableBody.addEventListener("mouseout", (event) => {
-  const fromCell = event.target.closest(".media-name[data-path]");
+  const fromCell = getMediaPreviewCell(event.target);
   if (!fromCell) return;
-  const toCell = event.relatedTarget?.closest?.(".media-name[data-path]");
-  if (toCell === fromCell) return;
+  const toCell = getMediaPreviewCell(event.relatedTarget);
+  if (toCell?.dataset.path === fromCell.dataset.path) return;
   hideMediaThumb();
 });
 

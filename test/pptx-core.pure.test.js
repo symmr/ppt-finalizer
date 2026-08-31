@@ -86,6 +86,14 @@ describe("resolveZipPath", () => {
   });
 });
 
+describe("isPreviewableMediaPath", () => {
+  test("includes common raster formats and SVG", () => {
+    assert.equal(core.isPreviewableMediaPath("ppt/media/image1.png"), true);
+    assert.equal(core.isPreviewableMediaPath("ppt/media/chart.svg"), true);
+    assert.equal(core.isPreviewableMediaPath("ppt/media/video1.mp4"), false);
+  });
+});
+
 describe("isMediaRelationship", () => {
   test("is true when the target path lives under a media/ folder", () => {
     assert.equal(core.isMediaRelationship("some/custom/type", "../media/image1.png"), true);

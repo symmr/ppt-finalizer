@@ -6,6 +6,13 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.2.4] - 2026-08-31
+
+### Changed
+
+- メディア容量分析: プレビュー列を追加（PNG/JPEG/GIF/WebP/BMP/**SVG**）
+- サムネイルホバーで拡大プレビュー（従来どおり）
+
 ## [1.2.3] - 2026-08-31
 
 ### Added
@@ -67,6 +74,7 @@
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 - フォント選択・整理オプションの設定記憶（localStorage）
 
+[1.2.4]: https://github.com/symmr/ppt-finalizer/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/symmr/ppt-finalizer/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/symmr/ppt-finalizer/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/symmr/ppt-finalizer/compare/v1.2.0...v1.2.1

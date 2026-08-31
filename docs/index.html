@@ -637,6 +637,49 @@
       text-decoration-color: var(--muted);
       text-underline-offset: 2px;
     }
+    .media-col-thumb {
+      width: 2.75rem;
+      padding-right: 0.25rem;
+    }
+    .media-thumb-cell {
+      width: 2.75rem;
+      padding: 0.35rem 0.25rem 0.35rem 0.4rem;
+      vertical-align: middle;
+    }
+    .media-inline-thumb {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.25rem;
+      height: 2.25rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg);
+      overflow: hidden;
+      cursor: help;
+    }
+    .media-inline-thumb img {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+    .media-inline-thumb.is-loading {
+      background: linear-gradient(
+        90deg,
+        var(--bg) 0%,
+        var(--surface) 50%,
+        var(--bg) 100%
+      );
+      background-size: 200% 100%;
+      animation: media-thumb-shimmer 1.2s ease-in-out infinite;
+    }
+    @keyframes media-thumb-shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
     .media-thumb-tooltip {
       position: fixed;
       z-index: 2000;
@@ -860,6 +903,7 @@
             <table class="media-table">
               <thead>
                 <tr>
+                  <th class="media-col-thumb" aria-label="プレビュー"><span hidden>プレビュー</span></th>
                   <th>ファイル</th>
                   <th>サイズ</th>
                   <th>使用スライド</th>

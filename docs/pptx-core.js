@@ -13,7 +13,7 @@ const STYLE_BLOCK_RES = [
   { re: /<(?:p|a):otherStyle\b[\s\S]*?<\/(?:p|a):otherStyle>/g, role: "body" },
 ];
 const EMBEDDED_FONT_BLOCK_RE = /<p:embeddedFont>([\s\S]*?)<\/p:embeddedFont>/g;
-const PREVIEWABLE_IMAGE_RE = /\.(png|jpe?g|gif|webp|bmp)$/i;
+const PREVIEWABLE_IMAGE_RE = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 const EMBEDDED_FONT_LST_RE = /<p:embeddedFontLst>[\s\S]*?<\/p:embeddedFontLst>/g;
 const FONT_REL_RE = /<Relationship[^>]+Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/font"[^>]*\/>\s*/g;
 const REL_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide";
@@ -62,6 +62,7 @@ function mimeForMediaPath(path) {
     gif: "image/gif",
     webp: "image/webp",
     bmp: "image/bmp",
+    svg: "image/svg+xml",
   };
   return map[ext] || "application/octet-stream";
 }
