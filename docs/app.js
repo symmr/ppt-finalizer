@@ -65,10 +65,10 @@ const resultTabBadge = document.getElementById("resultTabBadge");
 const resultEmpty = document.getElementById("resultEmpty");
 const fileAnalysisSize = document.getElementById("fileAnalysisSize");
 const fileAnalysisSlides = document.getElementById("fileAnalysisSlides");
+const fileAnalysisAfterSize = document.getElementById("fileAnalysisAfterSize");
 const reductionBlock = document.getElementById("reductionBlock");
 const reductionBar = document.getElementById("reductionBar");
 const fileAnalysisEstimateBar = document.getElementById("fileAnalysisEstimateBar");
-const fileAnalysisEstimate = document.getElementById("fileAnalysisEstimate");
 const titleFontPreview = document.getElementById("titleFontPreview");
 const bodyFontPreview = document.getElementById("bodyFontPreview");
 const fontAnalysisBadge = document.getElementById("fontAnalysisBadge");
@@ -536,10 +536,10 @@ function updateSideChrome() {
 }
 
 function updateReductionEstimate() {
-  if (!fileAnalysisEstimate || !reductionBlock) return;
+  if (!fileAnalysisAfterSize) return;
   if (!cleanupPlan || !pptxZipCache || !currentFileSize) {
-    reductionBlock.hidden = true;
-    fileAnalysisEstimate.textContent = "—";
+    fileAnalysisAfterSize.textContent = "—";
+    if (reductionBlock) reductionBlock.hidden = true;
     if (reductionBar) reductionBar.setAttribute("aria-valuenow", "0");
     if (fileAnalysisEstimateBar) fileAnalysisEstimateBar.style.width = "0%";
     return;
@@ -547,8 +547,8 @@ function updateReductionEstimate() {
 
   const bytes = computeReductionEstimate(cleanupPlan, getFinalizeOptions(), pptxZipCache);
   if (bytes <= 0) {
-    reductionBlock.hidden = true;
-    fileAnalysisEstimate.textContent = "削減見込みなし";
+    fileAnalysisAfterSize.textContent = `${formatBytes(currentFileSize)}（削減見込みなし）`;
+    if (reductionBlock) reductionBlock.hidden = true;
     if (reductionBar) reductionBar.setAttribute("aria-valuenow", "0");
     if (fileAnalysisEstimateBar) fileAnalysisEstimateBar.style.width = "0%";
     return;
@@ -559,9 +559,9 @@ function updateReductionEstimate() {
   const pct = pctNum.toFixed(1);
   const barPct = Math.min(100, Math.max(0.5, pctNum));
 
-  reductionBlock.hidden = false;
-  fileAnalysisEstimate.textContent =
-    `約 ${formatBytes(bytes)} 削減（${pct}%）→ 仕上げ後 ${formatBytes(after)} 前後`;
+  fileAnalysisAfterSize.textContent =
+    `${formatBytes(after)}（${formatBytes(bytes)} / ${pct}% 削減）`;
+  if (reductionBlock) reductionBlock.hidden = false;
   if (fileAnalysisEstimateBar) fileAnalysisEstimateBar.style.width = `${barPct}%`;
   if (reductionBar) reductionBar.setAttribute("aria-valuenow", String(Math.round(barPct)));
 }

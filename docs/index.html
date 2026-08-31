@@ -151,8 +151,8 @@
       display: none !important;
     }
     .reduction-block {
-      padding: 0 1.25rem 1rem;
-      border-bottom: 1px solid var(--border);
+      margin-top: 0.65rem;
+      padding: 0;
     }
     .reduction-block[hidden] {
       display: none;
@@ -171,12 +171,6 @@
       border-radius: 999px;
       background: var(--accent);
       transition: width 0.2s ease;
-    }
-    .reduction-text {
-      margin: 0;
-      font-size: 0.82rem;
-      color: var(--muted);
-      line-height: 1.45;
     }
     .font-preview {
       margin: 0;
@@ -861,12 +855,13 @@
           <dd id="fileAnalysisSize">—</dd>
           <dt>スライド数</dt>
           <dd id="fileAnalysisSlides">—</dd>
+          <dt>仕上げ後サイズ</dt>
+          <dd id="fileAnalysisAfterSize">—</dd>
         </dl>
         <div class="reduction-block" id="reductionBlock" hidden>
           <div class="reduction-bar" id="reductionBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="削減見込み">
             <div class="reduction-bar-fill" id="fileAnalysisEstimateBar"></div>
           </div>
-          <p class="reduction-text" id="fileAnalysisEstimate">—</p>
         </div>
       </div>
       <details class="analysis-fold" id="fontAnalysisFold">
