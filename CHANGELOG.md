@@ -6,6 +6,12 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.1.1] - 2026-08-31
+
+### Fixed
+
+- 右側分析パネルがスクロールできない問題（内部スクロールコンテナを追加）
+
 ## [1.1.0] - 2026-08-31
 
 ### Changed
@@ -27,5 +33,6 @@
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 - フォント選択・整理オプションの設定記憶（localStorage）
 
+[1.1.1]: https://github.com/symmr/ppt-finalizer/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/symmr/ppt-finalizer/compare/v1.0...v1.1.0
 [1.0]: https://github.com/symmr/ppt-finalizer/releases/tag/v1.0
