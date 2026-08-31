@@ -560,7 +560,7 @@ function updateReductionEstimate() {
   const barPct = Math.min(100, Math.max(0.5, pctNum));
 
   fileAnalysisAfterSize.textContent =
-    `${formatBytes(after)}（${formatBytes(bytes)} / ${pct}% 削減）`;
+    `${formatBytes(after)}（${pct}% 削減）`;
   if (reductionBlock) reductionBlock.hidden = false;
   if (fileAnalysisEstimateBar) fileAnalysisEstimateBar.style.width = `${barPct}%`;
   if (reductionBar) reductionBar.setAttribute("aria-valuenow", String(Math.round(barPct)));

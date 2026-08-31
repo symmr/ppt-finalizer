@@ -6,6 +6,12 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.2.6] - 2026-08-31
+
+### Changed
+
+- 仕上げ後サイズの表記を簡略化（削減率のみ表示）
+
 ## [1.2.5] - 2026-08-31
 
 ### Changed
@@ -80,6 +86,7 @@
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 - フォント選択・整理オプションの設定記憶（localStorage）
 
+[1.2.6]: https://github.com/symmr/ppt-finalizer/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/symmr/ppt-finalizer/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/symmr/ppt-finalizer/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/symmr/ppt-finalizer/compare/v1.2.2...v1.2.3
