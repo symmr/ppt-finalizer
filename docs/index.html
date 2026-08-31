@@ -58,6 +58,9 @@
     }
     .layout-main {
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
     }
     .layout-main > .panel {
       margin-bottom: 0;
@@ -98,6 +101,126 @@
       color: var(--muted);
       text-align: center;
       line-height: 1.55;
+    }
+    .side-tabs {
+      display: flex;
+      gap: 0.35rem;
+      padding: 0.35rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .side-tab {
+      flex: 1;
+      padding: 0.45rem 0.65rem;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .side-tab.is-active {
+      background: var(--bg);
+      color: var(--text);
+    }
+    .side-tab-badge {
+      display: inline-block;
+      margin-left: 0.25rem;
+      color: var(--accent);
+      font-size: 0.65rem;
+      vertical-align: middle;
+    }
+    .side-tab-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .reduction-block {
+      padding: 0 1.25rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .reduction-block[hidden] {
+      display: none;
+    }
+    .reduction-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 0.45rem;
+    }
+    .reduction-bar-fill {
+      height: 100%;
+      width: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      transition: width 0.2s ease;
+    }
+    .reduction-text {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .font-preview {
+      margin: 0.4rem 0 0;
+      padding: 0.45rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      line-height: 1.35;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .font-preview--title {
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    .font-preview--body {
+      font-size: 0.92rem;
+    }
+    .font-options.is-disabled .font-preview {
+      opacity: 0.45;
+    }
+    .font-preview.is-missing {
+      color: var(--muted);
+      font-family: inherit !important;
+      font-style: italic;
+      font-size: 0.78rem;
+      font-weight: 400;
+      white-space: normal;
+    }
+    .actions-sticky {
+      position: sticky;
+      bottom: 0;
+      z-index: 20;
+      padding-top: 0.5rem;
+      background: linear-gradient(to top, var(--bg) 65%, transparent);
+    }
+    .actions-sticky-inner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      .actions-sticky-inner {
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+      }
+    }
+    .actions-sticky .actions {
+      margin-top: 0;
+    }
+    .actions-sticky .error {
+      margin-top: 0.65rem;
+      margin-bottom: 0;
     }
     @media (max-width: 900px) {
       .layout {
@@ -561,6 +684,7 @@
           <input type="text" id="titleCustomFontInput" class="custom-font" hidden
             placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
             aria-label="タイトル用フォント名（自由入力）">
+          <p class="font-preview font-preview--title" id="titleFontPreview" aria-live="polite">見出し Sample あいう ABC 123</p>
         </div>
         <div class="font-row">
           <label for="bodyFontSelect">本文</label>
@@ -568,6 +692,7 @@
           <input type="text" id="bodyCustomFontInput" class="custom-font" hidden
             placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
             aria-label="本文用フォント名（自由入力）">
+          <p class="font-preview font-preview--body" id="bodyFontPreview" aria-live="polite">本文 Sample あいう ABC 123</p>
         </div>
         <p class="scanning" id="scanningMsg" hidden>分析中…</p>
       </section>
@@ -611,20 +736,30 @@
         </label>
       </section>
 
-      <div class="actions">
-        <button type="button" class="primary" id="overwriteBtn" disabled hidden>仕上げて上書き（バックアップ付き）</button>
-        <button type="button" class="secondary" id="downloadBtn" disabled>仕上げてダウンロード</button>
-        <button type="button" class="secondary" id="clearBtn" disabled>クリア</button>
-      </div>
-      <p class="error" id="errorMsg" hidden></p>
         </section>
+
+        <div class="actions-sticky">
+          <div class="actions-sticky-inner">
+            <div class="actions">
+              <button type="button" class="primary" id="overwriteBtn" disabled hidden>仕上げて上書き（バックアップ付き）</button>
+              <button type="button" class="secondary" id="downloadBtn" disabled>仕上げてダウンロード</button>
+              <button type="button" class="secondary" id="clearBtn" disabled>クリア</button>
+            </div>
+            <p class="error" id="errorMsg" hidden></p>
+          </div>
+        </div>
       </div>
 
       <aside class="layout-side" id="layoutSide" aria-label="分析と処理結果">
+        <div class="side-tabs" id="sideTabs" hidden role="tablist" aria-label="右パネル">
+          <button type="button" class="side-tab is-active" id="sideTabAnalysisBtn" data-side-tab="analysis" role="tab" aria-selected="true" aria-controls="sideTabAnalysis">分析</button>
+          <button type="button" class="side-tab" id="sideTabResultBtn" data-side-tab="result" role="tab" aria-selected="false" aria-controls="sideTabResult">結果<span class="side-tab-badge" id="resultTabBadge" hidden aria-label="新しい結果">●</span></button>
+        </div>
         <div class="layout-side-scroll">
           <p class="side-placeholder" id="sidePlaceholder">PPTX を開くと、ここに分析と処理結果が表示されます。</p>
 
-          <section class="panel analysis-stack" id="analysisStack" hidden>
+          <div class="side-tab-panel" id="sideTabAnalysis" data-side-panel="analysis" role="tabpanel" aria-labelledby="sideTabAnalysisBtn">
+            <section class="panel analysis-stack" id="analysisStack" hidden>
       <div class="file-analysis" id="fileAnalysis">
         <h2 class="section-title">ファイル分析</h2>
         <dl class="file-stats">
@@ -632,9 +767,13 @@
           <dd id="fileAnalysisSize">—</dd>
           <dt>スライド数</dt>
           <dd id="fileAnalysisSlides">—</dd>
-          <dt>削減見込み</dt>
-          <dd id="fileAnalysisEstimate">—</dd>
         </dl>
+        <div class="reduction-block" id="reductionBlock" hidden>
+          <div class="reduction-bar" id="reductionBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="削減見込み">
+            <div class="reduction-bar-fill" id="fileAnalysisEstimateBar"></div>
+          </div>
+          <p class="reduction-text" id="fileAnalysisEstimate">—</p>
+        </div>
       </div>
       <details class="analysis-fold" id="fontAnalysisFold">
         <summary>
@@ -681,12 +820,14 @@
           <p class="analysis-empty" id="mediaEmpty" hidden>ppt/media/ 内のメディアは見つかりませんでした。</p>
         </div>
       </details>
-        </section>
+            </section>
+          </div>
 
-        <section class="panel" id="resultPanel" hidden>
-          <h2 class="section-title">処理結果</h2>
-          <dl class="stats" id="stats"></dl>
-        </section>
+          <div class="side-tab-panel" id="sideTabResult" data-side-panel="result" role="tabpanel" aria-labelledby="sideTabResultBtn" hidden>
+            <section class="panel" id="resultPanel" hidden>
+              <dl class="stats" id="stats"></dl>
+            </section>
+          </div>
         </div>
       </aside>
     </div>

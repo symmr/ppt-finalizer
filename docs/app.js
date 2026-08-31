@@ -29,6 +29,8 @@ let cleanupPlan = null;
 let currentFileSize = 0;
 let selectedTitleFont = DEFAULT_FONT;
 let selectedBodyFont = DEFAULT_FONT;
+let activeSideTab = "analysis";
+let hasResultContent = false;
 let pptxZipCache = null;
 const mediaThumbUrlCache = new Map();
 
@@ -54,9 +56,20 @@ const statsEl = document.getElementById("stats");
 const fsNote = document.getElementById("fsNote");
 const analysisStack = document.getElementById("analysisStack");
 const sidePlaceholder = document.getElementById("sidePlaceholder");
+const sideTabs = document.getElementById("sideTabs");
+const sideTabAnalysis = document.getElementById("sideTabAnalysis");
+const sideTabResult = document.getElementById("sideTabResult");
+const sideTabAnalysisBtn = document.getElementById("sideTabAnalysisBtn");
+const sideTabResultBtn = document.getElementById("sideTabResultBtn");
+const resultTabBadge = document.getElementById("resultTabBadge");
 const fileAnalysisSize = document.getElementById("fileAnalysisSize");
 const fileAnalysisSlides = document.getElementById("fileAnalysisSlides");
+const reductionBlock = document.getElementById("reductionBlock");
+const reductionBar = document.getElementById("reductionBar");
+const fileAnalysisEstimateBar = document.getElementById("fileAnalysisEstimateBar");
 const fileAnalysisEstimate = document.getElementById("fileAnalysisEstimate");
+const titleFontPreview = document.getElementById("titleFontPreview");
+const bodyFontPreview = document.getElementById("bodyFontPreview");
 const fontAnalysisBadge = document.getElementById("fontAnalysisBadge");
 const fontSummary = document.getElementById("fontSummary");
 const fontTableBody = document.getElementById("fontTableBody");
@@ -208,6 +221,56 @@ function populateFontSelect(selectEl, customInput, previous) {
 function rebuildFontDropdowns() {
   selectedTitleFont = populateFontSelect(titleFontSelect, titleCustomFontInput, selectedTitleFont);
   selectedBodyFont = populateFontSelect(bodyFontSelect, bodyCustomFontInput, selectedBodyFont);
+  updateFontPreviews();
+}
+
+function quoteFontFamily(name) {
+  return `"${String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+async function isFontAvailable(fontName) {
+  const trimmed = String(fontName || "").trim();
+  if (!trimmed || !document.fonts?.check) return true;
+  try {
+    await document.fonts.load(`16px ${quoteFontFamily(trimmed)}`);
+    return document.fonts.check(`16px ${quoteFontFamily(trimmed)}`);
+  } catch {
+    return true;
+  }
+}
+
+function updateFontPreviewElement(previewEl, fontName, sampleText, enabled) {
+  if (!previewEl) return;
+  previewEl.classList.remove("is-missing");
+  if (!enabled) {
+    previewEl.style.fontFamily = "";
+    previewEl.textContent = "フォント統一オフ";
+    return;
+  }
+  previewEl.style.fontFamily = `${quoteFontFamily(fontName)}, sans-serif`;
+  previewEl.textContent = sampleText;
+  isFontAvailable(fontName).then((available) => {
+    if (!available && optReplaceFonts.checked) {
+      previewEl.classList.add("is-missing");
+      previewEl.textContent = `「${fontName}」がこの PC に見つかりません`;
+    }
+  });
+}
+
+function updateFontPreviews() {
+  const enabled = optReplaceFonts.checked;
+  updateFontPreviewElement(
+    titleFontPreview,
+    getFontFromPicker(titleFontSelect, titleCustomFontInput),
+    "見出し Sample あいう ABC 123",
+    enabled
+  );
+  updateFontPreviewElement(
+    bodyFontPreview,
+    getFontFromPicker(bodyFontSelect, bodyCustomFontInput),
+    "本文 Sample あいう ABC 123",
+    enabled
+  );
 }
 
 function getFontFromPicker(selectEl, customInput) {
@@ -285,10 +348,12 @@ function bindFontPicker(selectEl, customInput, getSelected, setSelected) {
       setSelected(selectEl.value);
     }
     saveSettings();
+    updateFontPreviews();
   });
   customInput.addEventListener("input", () => {
     setSelected(customInput.value.trim() || DEFAULT_FONT);
     saveSettings();
+    updateFontPreviews();
   });
 }
 
@@ -403,28 +468,79 @@ function getFinalizeOptions() {
   };
 }
 
-function updateSidePlaceholder() {
-  if (!sidePlaceholder) return;
-  sidePlaceholder.hidden = !analysisStack.hidden || !resultPanel.hidden;
+function setSideTab(tab) {
+  activeSideTab = tab;
+  if (sideTabAnalysisBtn) {
+    sideTabAnalysisBtn.classList.toggle("is-active", tab === "analysis");
+    sideTabAnalysisBtn.setAttribute("aria-selected", tab === "analysis" ? "true" : "false");
+  }
+  if (sideTabResultBtn) {
+    sideTabResultBtn.classList.toggle("is-active", tab === "result");
+    sideTabResultBtn.setAttribute("aria-selected", tab === "result" ? "true" : "false");
+  }
+  if (sideTabAnalysis) sideTabAnalysis.hidden = tab !== "analysis";
+  if (sideTabResult) sideTabResult.hidden = tab !== "result";
+  if (tab === "result" && resultTabBadge) {
+    resultTabBadge.hidden = true;
+  }
+}
+
+function updateSideChrome() {
+  const hasAnalysis = analysisStack && !analysisStack.hidden;
+  const hasResult = hasResultContent && resultPanel && !resultPanel.hidden;
+  const hasContent = hasAnalysis || hasResult;
+
+  if (sidePlaceholder) sidePlaceholder.hidden = hasContent;
+  if (sideTabs) sideTabs.hidden = !hasContent;
+
+  if (!hasContent) {
+    if (sideTabAnalysis) sideTabAnalysis.hidden = true;
+    if (sideTabResult) sideTabResult.hidden = true;
+    return;
+  }
+
+  if (activeSideTab === "result" && !hasResult) {
+    setSideTab("analysis");
+  } else if (activeSideTab === "analysis" && !hasAnalysis && hasResult) {
+    setSideTab("result");
+  } else {
+    setSideTab(activeSideTab);
+  }
+
+  if (resultTabBadge) {
+    resultTabBadge.hidden = !(hasResult && activeSideTab !== "result");
+  }
 }
 
 function updateReductionEstimate() {
-  if (!fileAnalysisEstimate) return;
+  if (!fileAnalysisEstimate || !reductionBlock) return;
   if (!cleanupPlan || !pptxZipCache || !currentFileSize) {
+    reductionBlock.hidden = true;
     fileAnalysisEstimate.textContent = "—";
+    if (reductionBar) reductionBar.setAttribute("aria-valuenow", "0");
+    if (fileAnalysisEstimateBar) fileAnalysisEstimateBar.style.width = "0%";
     return;
   }
 
   const bytes = computeReductionEstimate(cleanupPlan, getFinalizeOptions(), pptxZipCache);
   if (bytes <= 0) {
-    fileAnalysisEstimate.textContent = "なし";
+    reductionBlock.hidden = true;
+    fileAnalysisEstimate.textContent = "削減見込みなし";
+    if (reductionBar) reductionBar.setAttribute("aria-valuenow", "0");
+    if (fileAnalysisEstimateBar) fileAnalysisEstimateBar.style.width = "0%";
     return;
   }
 
   const after = Math.max(0, currentFileSize - bytes);
-  const pct = currentFileSize > 0 ? ((bytes / currentFileSize) * 100).toFixed(1) : "0";
+  const pctNum = currentFileSize > 0 ? (bytes / currentFileSize) * 100 : 0;
+  const pct = pctNum.toFixed(1);
+  const barPct = Math.min(100, Math.max(0.5, pctNum));
+
+  reductionBlock.hidden = false;
   fileAnalysisEstimate.textContent =
-    `約 ${formatBytes(bytes)}（${pct}%・仕上げ後 ${formatBytes(after)} 前後）`;
+    `約 ${formatBytes(bytes)} 削減（${pct}%）→ 仕上げ後 ${formatBytes(after)} 前後`;
+  if (fileAnalysisEstimateBar) fileAnalysisEstimateBar.style.width = `${barPct}%`;
+  if (reductionBar) reductionBar.setAttribute("aria-valuenow", String(Math.round(barPct)));
 }
 
 function renderCleanupPreview() {
@@ -470,7 +586,8 @@ function renderFileAnalysis(totalFileSize, slideCount) {
   fileAnalysisSize.textContent = formatBytes(totalFileSize);
   fileAnalysisSlides.textContent = `${slideCount} 枚`;
   updateReductionEstimate();
-  updateSidePlaceholder();
+  setSideTab("analysis");
+  updateSideChrome();
 }
 
 function renderFontAnalysis(fonts) {
@@ -480,7 +597,7 @@ function renderFontAnalysis(fonts) {
     fontSummary.textContent = "";
     fontTableBody.innerHTML = "";
     fontEmpty.hidden = false;
-    updateSidePlaceholder();
+    updateSideChrome();
     return;
   }
 
@@ -660,6 +777,7 @@ async function loadFromFile(file, handle = null) {
 
   fileNameEl.textContent = file ? file.name : "";
   hideError();
+  hasResultContent = false;
   resultPanel.hidden = true;
   setActionState();
 
@@ -672,7 +790,7 @@ async function loadFromFile(file, handle = null) {
     analysisStack.hidden = true;
     cleanupPanel.hidden = true;
     rebuildFontDropdowns();
-    updateSidePlaceholder();
+    updateSideChrome();
     return;
   }
 
@@ -689,6 +807,8 @@ async function loadFromFile(file, handle = null) {
     renderFontAnalysis(analysis.fonts);
     renderMediaAnalysis(mediaAnalysis);
     renderCleanupPreview();
+    setSideTab("analysis");
+    updateSideChrome();
   } catch (err) {
     showError(`分析に失敗しました: ${err.message || err}`);
     pptxFonts = [];
@@ -699,7 +819,7 @@ async function loadFromFile(file, handle = null) {
     analysisStack.hidden = true;
     cleanupPanel.hidden = true;
     rebuildFontDropdowns();
-    updateSidePlaceholder();
+    updateSideChrome();
   } finally {
     scanningMsg.hidden = true;
     scanningMsg.textContent = "分析中…";
@@ -878,8 +998,10 @@ function renderStats(stats) {
     ${backupLine}
     <dt>出力ファイル</dt><dd>${escapeHtml(stats.outputName)}</dd>
   `;
+  hasResultContent = true;
   resultPanel.hidden = false;
-  updateSidePlaceholder();
+  setSideTab("result");
+  updateSideChrome();
 }
 
 function downloadBlob(blob, filename) {
@@ -908,7 +1030,9 @@ function clearAll() {
   revokeMediaThumbUrls();
   analysisStack.hidden = true;
   cleanupPanel.hidden = true;
+  hasResultContent = false;
   resultPanel.hidden = true;
+  activeSideTab = "analysis";
   loadFromFile(null, null);
 }
 
@@ -958,12 +1082,20 @@ function updateFontOptionsState() {
   bodyFontSelect.disabled = !enabled;
   bodyCustomFontInput.disabled = !enabled;
   fontOptionsPanel.classList.toggle("is-disabled", !enabled);
+  updateFontPreviews();
 }
 
 function onFontReplaceToggle() {
   updateFontOptionsState();
   saveSettings();
   updateReductionEstimate();
+}
+
+function onSideTabClick(event) {
+  const tab = event.currentTarget?.dataset?.sideTab;
+  if (!tab) return;
+  setSideTab(tab);
+  updateSideChrome();
 }
 
 function onCleanupOptionChange() {
@@ -984,6 +1116,8 @@ optRemoveNotes.addEventListener("change", onCleanupOptionChange);
 optRemoveProperties.addEventListener("change", onCleanupOptionChange);
 uncheckAllOptionsBtn.addEventListener("click", uncheckAllCleanupOptions);
 optReplaceFonts.addEventListener("change", onFontReplaceToggle);
+if (sideTabAnalysisBtn) sideTabAnalysisBtn.addEventListener("click", onSideTabClick);
+if (sideTabResultBtn) sideTabResultBtn.addEventListener("click", onSideTabClick);
 
 mediaTableBody.addEventListener("mouseover", (event) => {
   const cell = event.target.closest(".media-name[data-path]");
@@ -1064,7 +1198,7 @@ loadSettings();
 rebuildFontDropdowns();
 updateFontOptionsState();
 setActionState();
-updateSidePlaceholder();
+updateSideChrome();
 showAppVersion();
 
 async function showAppVersion() {

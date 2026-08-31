@@ -6,6 +6,15 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.2.0] - 2026-08-31
+
+### Added
+
+- 右パネルを「分析」「結果」タブに分割（仕上げ後は結果タブを自動表示）
+- 削減見込みのプログレスバー表示
+- 左カラム下部のアクションボタンを sticky 固定
+- タイトル／本文フォントのプレビュー表示（未インストール時は警告）
+
 ## [1.1.1] - 2026-08-31
 
 ### Fixed
@@ -33,6 +42,7 @@
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 - フォント選択・整理オプションの設定記憶（localStorage）
 
+[1.2.0]: https://github.com/symmr/ppt-finalizer/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/symmr/ppt-finalizer/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/symmr/ppt-finalizer/compare/v1.0...v1.1.0
 [1.0]: https://github.com/symmr/ppt-finalizer/releases/tag/v1.0
