@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PPT Finalizer</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
   <style>
     :root {
@@ -894,7 +899,26 @@
     <span class="media-thumb-fallback" hidden></span>
   </div>
 
-  <script src="pptx-core.js"></script>
-  <script src="app.js"></script>
+  <script>
+    (async function loadAppScripts() {
+      let version = String(Date.now());
+      try {
+        const res = await fetch("version.json", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.version) version = data.version;
+        }
+      } catch (_) {}
+      for (const file of ["pptx-core.js", "app.js"]) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = `${file}?v=${encodeURIComponent(version)}`;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.body.appendChild(script);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
