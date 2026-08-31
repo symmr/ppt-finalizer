@@ -947,15 +947,18 @@ function renderStats(stats) {
   const embeddedLine = stats.embeddedFontKinds > 0
     ? `${stats.embeddedFontKinds} 種類（${formatBytes(stats.embeddedFontBytes)}）`
     : "0 種類";
-  const backupLine = stats.backupName
-    ? `<dt>バックアップ</dt><dd>${escapeHtml(stats.backupName)}（元ファイルと同じフォルダ）</dd>`
-    : "";
   const modeLine = stats.saveMode === "overwrite"
     ? `<dt>保存方法</dt><dd>元ファイルに上書き</dd>`
     : `<dt>保存方法</dt><dd>別名ダウンロード</dd>`;
   const sizeLine = stats.originalSize != null && stats.outputSize != null
     ? `<dt>ファイルサイズ</dt><dd>${formatBytes(stats.originalSize)} → ${formatBytes(stats.outputSize)}</dd>
-       <dt>サイズ削減</dt><dd>${formatSizeChange(stats.originalSize, stats.outputSize)}</dd>`
+       <dt>削減</dt><dd>${formatSizeChange(stats.originalSize, stats.outputSize)}</dd>`
+    : "";
+  const outputLine = `<dt>出力ファイル</dt><dd>${escapeHtml(stats.outputName)}</dd>`;
+  const summaryBlock = `<dl class="stats">${sizeLine}${modeLine}${outputLine}</dl>`;
+
+  const backupLine = stats.backupName
+    ? `<dt>バックアップ</dt><dd>${escapeHtml(stats.backupName)}（元ファイルと同じフォルダ）</dd>`
     : "";
 
   const cleanupLines = [];
@@ -994,13 +997,12 @@ function renderStats(stats) {
        <dt>埋め込みフォント削除</dt><dd>${embeddedLine}</dd>`
     : `<dt>フォント統一</dt><dd>未実施（元のフォントのまま）</dd>`;
 
+  const changeLines = [fontLines, ...cleanupLines, backupLine].filter(Boolean);
+
   statsEl.innerHTML = `
-    ${fontLines}
-    ${cleanupLines.join("")}
-    ${sizeLine}
-    ${modeLine}
-    ${backupLine}
-    <dt>出力ファイル</dt><dd>${escapeHtml(stats.outputName)}</dd>
+    <div class="stats-block">${summaryBlock}</div>
+    <h3 class="stats-section-title">変更内容</h3>
+    <div class="stats-block"><dl class="stats">${changeLines.join("")}</dl></div>
   `;
   hasResultContent = true;
   resultPanel.hidden = false;

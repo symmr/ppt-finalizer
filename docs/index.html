@@ -389,6 +389,19 @@
       min-width: 0;
       word-break: break-word;
     }
+    .stats-section-title {
+      margin: 1rem 0 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .stats-section-title:first-child {
+      margin-top: 0;
+    }
+    .stats-block + .stats-section-title {
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+    }
     .error {
       color: #b91c1c;
       font-size: 0.9rem;
@@ -686,19 +699,27 @@
         </label>
         <div class="font-row">
           <label for="titleFontSelect">タイトル</label>
-          <select id="titleFontSelect"></select>
-          <input type="text" id="titleCustomFontInput" class="custom-font" hidden
-            placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
-            aria-label="タイトル用フォント名（自由入力）">
-          <p class="font-preview font-preview--title" id="titleFontPreview" aria-live="polite">見出し Sample あいう ABC 123</p>
+          <div class="font-picker-row">
+            <div class="font-picker-control">
+              <select id="titleFontSelect"></select>
+              <input type="text" id="titleCustomFontInput" class="custom-font" hidden
+                placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
+                aria-label="タイトル用フォント名（自由入力）">
+            </div>
+            <p class="font-preview font-preview--title" id="titleFontPreview" aria-live="polite">見出し Sample あいう ABC 123</p>
+          </div>
         </div>
         <div class="font-row">
           <label for="bodyFontSelect">本文</label>
-          <select id="bodyFontSelect"></select>
-          <input type="text" id="bodyCustomFontInput" class="custom-font" hidden
-            placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
-            aria-label="本文用フォント名（自由入力）">
-          <p class="font-preview font-preview--body" id="bodyFontPreview" aria-live="polite">本文 Sample あいう ABC 123</p>
+          <div class="font-picker-row">
+            <div class="font-picker-control">
+              <select id="bodyFontSelect"></select>
+              <input type="text" id="bodyCustomFontInput" class="custom-font" hidden
+                placeholder="フォント名を入力" autocomplete="off" spellcheck="false"
+                aria-label="本文用フォント名（自由入力）">
+            </div>
+            <p class="font-preview font-preview--body" id="bodyFontPreview" aria-live="polite">本文 Sample あいう ABC 123</p>
+          </div>
         </div>
         <p class="scanning" id="scanningMsg" hidden>分析中…</p>
       </section>
@@ -832,7 +853,7 @@
           <div class="side-tab-panel" id="sideTabResult" data-side-panel="result" role="tabpanel" aria-labelledby="sideTabResultBtn" hidden>
             <p class="analysis-empty" id="resultEmpty">仕上げると結果がここに表示されます。</p>
             <section class="panel" id="resultPanel" hidden>
-              <dl class="stats" id="stats"></dl>
+              <div id="stats"></div>
             </section>
           </div>
         </div>
