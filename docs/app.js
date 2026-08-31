@@ -53,6 +53,7 @@ const resultPanel = document.getElementById("resultPanel");
 const statsEl = document.getElementById("stats");
 const fsNote = document.getElementById("fsNote");
 const analysisStack = document.getElementById("analysisStack");
+const sidePlaceholder = document.getElementById("sidePlaceholder");
 const fileAnalysisSize = document.getElementById("fileAnalysisSize");
 const fileAnalysisSlides = document.getElementById("fileAnalysisSlides");
 const fileAnalysisEstimate = document.getElementById("fileAnalysisEstimate");
@@ -402,6 +403,11 @@ function getFinalizeOptions() {
   };
 }
 
+function updateSidePlaceholder() {
+  if (!sidePlaceholder) return;
+  sidePlaceholder.hidden = !analysisStack.hidden || !resultPanel.hidden;
+}
+
 function updateReductionEstimate() {
   if (!fileAnalysisEstimate) return;
   if (!cleanupPlan || !pptxZipCache || !currentFileSize) {
@@ -464,6 +470,7 @@ function renderFileAnalysis(totalFileSize, slideCount) {
   fileAnalysisSize.textContent = formatBytes(totalFileSize);
   fileAnalysisSlides.textContent = `${slideCount} 枚`;
   updateReductionEstimate();
+  updateSidePlaceholder();
 }
 
 function renderFontAnalysis(fonts) {
@@ -473,6 +480,7 @@ function renderFontAnalysis(fonts) {
     fontSummary.textContent = "";
     fontTableBody.innerHTML = "";
     fontEmpty.hidden = false;
+    updateSidePlaceholder();
     return;
   }
 
@@ -664,6 +672,7 @@ async function loadFromFile(file, handle = null) {
     analysisStack.hidden = true;
     cleanupPanel.hidden = true;
     rebuildFontDropdowns();
+    updateSidePlaceholder();
     return;
   }
 
@@ -690,6 +699,7 @@ async function loadFromFile(file, handle = null) {
     analysisStack.hidden = true;
     cleanupPanel.hidden = true;
     rebuildFontDropdowns();
+    updateSidePlaceholder();
   } finally {
     scanningMsg.hidden = true;
     scanningMsg.textContent = "分析中…";
@@ -869,6 +879,7 @@ function renderStats(stats) {
     <dt>出力ファイル</dt><dd>${escapeHtml(stats.outputName)}</dd>
   `;
   resultPanel.hidden = false;
+  updateSidePlaceholder();
 }
 
 function downloadBlob(blob, filename) {
@@ -897,6 +908,7 @@ function clearAll() {
   revokeMediaThumbUrls();
   analysisStack.hidden = true;
   cleanupPanel.hidden = true;
+  resultPanel.hidden = true;
   loadFromFile(null, null);
 }
 
@@ -1052,6 +1064,7 @@ loadSettings();
 rebuildFontDropdowns();
 updateFontOptionsState();
 setActionState();
+updateSidePlaceholder();
 showAppVersion();
 
 async function showAppVersion() {
