@@ -523,6 +523,34 @@
       font-weight: 400;
       margin-top: 0.15rem;
     }
+    .compress-suboptions {
+      display: grid;
+      grid-template-columns: 5.5rem minmax(0, 1fr);
+      gap: 0.4rem 0.75rem;
+      align-items: center;
+      margin: 0.35rem 0 0.15rem 1.65rem;
+    }
+    .compress-suboptions[hidden] {
+      display: none;
+    }
+    .compress-suboptions label {
+      margin: 0;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .compress-suboptions select {
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.85rem;
+    }
+    .media-px {
+      display: block;
+      margin-top: 0.15rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 400;
+    }
     .preview-strong {
       color: var(--text);
       font-weight: 600;
@@ -798,6 +826,27 @@
             <div class="check-desc">削除予定: <span class="preview-strong" id="orphanMediaPreview">—</span></div>
           </span>
         </label>
+        <label class="check-row">
+          <input type="checkbox" id="optCompressImages" checked>
+          <span>
+            画像を圧縮する
+            <div class="check-desc">スライド上の表示サイズに対する解像度（ppi）で縮小し、JPEG は再圧縮します</div>
+            <div class="check-desc">対象: <span class="preview-strong" id="compressImagesPreview">—</span></div>
+          </span>
+        </label>
+        <div class="compress-suboptions" id="compressImageOptions">
+          <label for="imagePpiSelect">解像度</label>
+          <select id="imagePpiSelect" aria-label="画像の目標解像度">
+            <option value="96">96 ppi（メール）</option>
+            <option value="150" selected>150 ppi（画面）</option>
+            <option value="220">220 ppi（HD）</option>
+          </select>
+          <label for="jpegQualitySelect">JPEG 品質</label>
+          <select id="jpegQualitySelect" aria-label="JPEG 再圧縮の品質">
+            <option value="0.75" selected>標準</option>
+            <option value="0.85">高</option>
+          </select>
+        </div>
         <label class="check-row">
           <input type="checkbox" id="optRemoveUnusedStructure">
           <span>

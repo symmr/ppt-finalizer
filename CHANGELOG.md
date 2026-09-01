@@ -6,6 +6,15 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.3.0] - 2026-09-01
+
+### Added
+
+- 画像圧縮（表示サイズ基準の ppi）。既定 150 ppi、96 / 220 ppi を選択可能
+- JPEG 品質（標準 / 高）。PNG / WebP は同一形式のまま縮小
+- メディア容量分析に現在画素 → 目標画素を表示
+- 仕上げ後サイズの削減見込みに画像圧縮を加算
+
 ## [1.2.7] - 2026-08-31
 
 ### Changed
@@ -92,6 +101,7 @@
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 - フォント選択・整理オプションの設定記憶（localStorage）
 
+[1.3.0]: https://github.com/symmr/ppt-finalizer/compare/v1.2.7...v1.3.0
 [1.2.7]: https://github.com/symmr/ppt-finalizer/compare/v1.2.6...v1.2.7
 [1.2.6]: https://github.com/symmr/ppt-finalizer/compare/v1.2.5...v1.2.6
 [1.2.5]: https://github.com/symmr/ppt-finalizer/compare/v1.2.4...v1.2.5

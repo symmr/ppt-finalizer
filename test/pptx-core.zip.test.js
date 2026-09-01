@@ -272,4 +272,202 @@ describe("computeReductionEstimate", () => {
     assert.ok(withFonts > 0);
     assert.equal(withoutFonts, 0);
   });
+
+  test("adds image-compress savings when compressImages is enabled", () => {
+    const zip = new JSZip();
+    const plan = {
+      slideOrphanMedia: { items: [] },
+      layoutsToRemove: [],
+      mastersToRemove: [],
+      structureFreedMedia: { totalCompressedSize: 0 },
+      notes: { count: 0, bytes: 0, compressedBytes: 0 },
+      properties: { removableBytes: 0 },
+      imageCompressUsages: [{
+        path: "ppt/media/photo.jpg",
+        width: 4000,
+        height: 4000,
+        mime: "image/jpeg",
+        size: 500000,
+        compressedSize: 400000,
+        uses: [{
+          displayCxEmu: core.EMU_PER_INCH,
+          displayCyEmu: core.EMU_PER_INCH,
+          visibleRatioW: 1,
+          visibleRatioH: 1,
+        }],
+      }],
+    };
+    const base = {
+      replaceFonts: false,
+      removeOrphanMedia: false,
+      removeUnusedStructure: false,
+      removeNotes: false,
+      removeProperties: false,
+    };
+    const off = core.computeReductionEstimate(plan, { ...base, compressImages: false }, zip);
+    const on = core.computeReductionEstimate(plan, {
+      ...base,
+      compressImages: true,
+      imagePpi: 150,
+      jpegQuality: 0.75,
+    }, zip);
+    assert.equal(off, 0);
+    assert.ok(on > 0);
+  });
+});
+
+describe("collectImageCompressJobs / compressImagesInZip", () => {
+  function pngStub(width, height, fill = 0) {
+    const buf = Buffer.alloc(64 + fill);
+    buf[0] = 0x89;
+    buf.write("PNG\r\n\x1a\n", 1);
+    buf.writeUInt32BE(13, 8);
+    buf.write("IHDR", 12);
+    buf.writeUInt32BE(width, 16);
+    buf.writeUInt32BE(height, 20);
+    buf.fill(0x61, 24);
+    return buf;
+  }
+
+  function picXml(rId, cx, cy, srcRect) {
+    const crop = srcRect
+      ? `<a:srcRect l="${srcRect.l || 0}" t="${srcRect.t || 0}" r="${srcRect.r || 0}" b="${srcRect.b || 0}"/>`
+      : "";
+    return `<p:pic><p:blipFill><a:blip r:embed="${rId}"/>${crop}</p:blipFill>` +
+      `<p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm></p:spPr></p:pic>`;
+  }
+
+  async function buildImageZip({ photos }) {
+    const zip = new JSZip();
+    zip.file(
+      "ppt/presentation.xml",
+      `<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+      `<p:sldSz cx="12192000" cy="6858000"/>` +
+      `<p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst></p:presentation>`
+    );
+    zip.file(
+      "ppt/_rels/presentation.xml.rels",
+      relsXml([rel("rId2", "slide", "slides/slide1.xml")])
+    );
+
+    const pics = [];
+    const imageRels = [];
+    photos.forEach((photo, index) => {
+      const rId = `rId${index + 2}`;
+      const mediaName = photo.name;
+      pics.push(photo.wrap
+        ? photo.wrap(picXml(rId, photo.cx, photo.cy, photo.srcRect))
+        : picXml(rId, photo.cx, photo.cy, photo.srcRect));
+      imageRels.push(rel(rId, "image", `../media/${mediaName}`));
+      zip.file(`ppt/media/${mediaName}`, photo.bytes);
+    });
+
+    zip.file(
+      "ppt/slides/slide1.xml",
+      `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+      `<p:cSld><p:spTree>${pics.join("")}</p:spTree></p:cSld></p:sld>`
+    );
+    zip.file(
+      "ppt/slides/_rels/slide1.xml.rels",
+      relsXml([
+        rel("rId1", "slideLayout", "../slideLayouts/slideLayout1.xml"),
+        ...imageRels,
+      ])
+    );
+    const buffer = await zip.generateAsync({ type: "nodebuffer" });
+    return JSZip.loadAsync(buffer);
+  }
+
+  test("assigns a smaller target to an icon than to a full-slide photo", async () => {
+    const zip = await buildImageZip({
+      photos: [
+        {
+          name: "hero.png",
+          bytes: pngStub(4000, 2250, 200),
+          cx: 12192000,
+          cy: 6858000,
+        },
+        {
+          name: "icon.png",
+          bytes: pngStub(4000, 4000, 200),
+          cx: core.EMU_PER_INCH,
+          cy: core.EMU_PER_INCH,
+        },
+      ],
+    });
+    const jobs = await core.collectImageCompressJobs(zip, { imagePpi: 150 });
+    const hero = jobs.find((job) => job.path.endsWith("hero.png"));
+    const icon = jobs.find((job) => job.path.endsWith("icon.png"));
+    assert.ok(hero.targetWidth > icon.targetWidth);
+    assert.equal(icon.targetWidth, 150);
+  });
+
+  test("shared media uses the largest display size", async () => {
+    const zip = await buildImageZip({
+      photos: [
+        {
+          name: "shared.png",
+          bytes: pngStub(2000, 2000, 80),
+          cx: core.EMU_PER_INCH,
+          cy: core.EMU_PER_INCH,
+        },
+        {
+          name: "shared.png",
+          bytes: pngStub(2000, 2000, 80),
+          cx: core.EMU_PER_INCH * 4,
+          cy: core.EMU_PER_INCH * 4,
+        },
+      ],
+    });
+    const jobs = await core.collectImageCompressJobs(zip, { imagePpi: 150 });
+    const shared = jobs.filter((job) => job.path.endsWith("shared.png"));
+    assert.equal(shared.length, 1);
+    assert.equal(shared[0].targetWidth, 600);
+  });
+
+  test("srcRect increases needed pixels for the stored image", async () => {
+    const zip = await buildImageZip({
+      photos: [
+        {
+          name: "cropped.png",
+          bytes: pngStub(2000, 1000, 80),
+          cx: core.EMU_PER_INCH,
+          cy: core.EMU_PER_INCH / 2,
+          srcRect: { l: 25000, r: 25000, t: 0, b: 0 },
+        },
+      ],
+    });
+    const [job] = await core.collectImageCompressJobs(zip, { imagePpi: 150 });
+    assert.equal(job.targetWidth, 300);
+  });
+
+  test("replaces media only when the codec returns a smaller payload", async () => {
+    const zip = await buildImageZip({
+      photos: [{
+        name: "hero.png",
+        bytes: pngStub(800, 800, 400),
+        cx: core.EMU_PER_INCH,
+        cy: core.EMU_PER_INCH,
+      }],
+    });
+    const before = await zip.files["ppt/media/hero.png"].async("uint8array");
+
+    await core.compressImagesInZip(zip, { compressImages: true, imagePpi: 150 }, {
+      async encode() {
+        return { bytes: new Uint8Array(before.byteLength + 10) };
+      },
+    });
+    const unchanged = await zip.files["ppt/media/hero.png"].async("uint8array");
+    assert.equal(unchanged.byteLength, before.byteLength);
+
+    const smaller = new Uint8Array(10).fill(7);
+    const result = await core.compressImagesInZip(zip, { compressImages: true, imagePpi: 150 }, {
+      async encode() {
+        return { bytes: smaller };
+      },
+    });
+    assert.equal(result.count, 1);
+    const after = await zip.files["ppt/media/hero.png"].async("uint8array");
+    assert.deepEqual(Buffer.from(after), Buffer.from(smaller));
+  });
 });

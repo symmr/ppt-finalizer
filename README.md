@@ -16,6 +16,7 @@ PowerPoint (`.pptx`) の仕上げをブラウザ内で行うツール。ファ�
 - ファイル分析（サイズ・スライド数・削減見込み）
 - フォント分析（使用フォント・埋込ファイルサイズ）
 - メディア容量分析（ホバーで画像プレビュー）
+- 画像圧縮（表示サイズ基準の ppi。既定 150 ppi、JPEG 再圧縮）
 - 孤立メディア削除
 - 未使用レイアウト／マスター削除（オプション）
 - スピーカーノート削除（オプション）
@@ -40,7 +41,7 @@ npm install
 npm test
 ```
 
-手動確認用に `test/fixtures/smoke-test.pptx`（タイトル/本文フォントが異なる・孤立メディアあり・未使用レイアウトありの最小PPTX）を置いています。ブラウザで実際にドロップして動作確認する際に使えます。生成スクリプトは `test/fixtures/build-smoke-pptx.js`（`node test/fixtures/build-smoke-pptx.js` で再生成可能）。
+手動確認用に `test/fixtures/smoke-test.pptx`（タイトル/本文フォントが異なる・縮小対象の画像あり・孤立メディアあり・未使用レイアウトあり）を置いています。ブラウザで実際にドロップして動作確認する際に使えます。生成スクリプトは `test/fixtures/build-smoke-pptx.js`（`node test/fixtures/build-smoke-pptx.js` で再生成可能）。
 
 ## ライセンス
 

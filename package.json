@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "PPT Finalizer のロジック（docs/pptx-core.js）に対するユニットテスト",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test test/pptx-core.pure.test.js test/pptx-core.zip.test.js"
   },
   "devDependencies": {
     "jszip": "^3.10.1"

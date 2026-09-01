@@ -23,6 +23,14 @@ const REL_NOTES_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/r
 const REL_NOTES_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster";
 const REL_FONT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/font";
 const MEDIA_REL_MARKERS = ["/image", "/video", "/audio", "/media"];
+const EMU_PER_INCH = 914400;
+const SRC_RECT_BASE = 100000;
+const DEFAULT_IMAGE_PPI = 150;
+const DEFAULT_JPEG_QUALITY = 0.75;
+const COMPRESSIBLE_IMAGE_RE = /\.(png|jpe?g|webp)$/i;
+const DEFAULT_SLIDE_CX_EMU = 12192000;
+const DEFAULT_SLIDE_CY_EMU = 6858000;
+const IMAGE_ENCODE_CONCURRENCY = 3;
 
 function decodeXmlEntities(value) {
   return value
@@ -51,6 +59,10 @@ function escapeHtml(str) {
 
 function isPreviewableMediaPath(path) {
   return PREVIEWABLE_IMAGE_RE.test(path);
+}
+
+function isCompressibleImagePath(path) {
+  return COMPRESSIBLE_IMAGE_RE.test(path);
 }
 
 function mimeForMediaPath(path) {
@@ -994,11 +1006,13 @@ async function computeCleanupPlan(zip) {
     [...layoutsToRemove],
     [...structure.unusedMasters]
   );
+  const imageCompressUsages = await collectImageCompressUsages(zip);
 
   return {
     structure,
     slideOrphanMedia: slideOrphans,
     structureFreedMedia,
+    imageCompressUsages,
     layoutsToRemove: [...layoutsToRemove],
     mastersToRemove: [...structure.unusedMasters],
     unusedLayoutCount: layoutsOnUsedMasters.length,
@@ -1143,6 +1157,460 @@ async function applyFontReplaceToZip(zip, fonts) {
   return { replacements, filesChanged, embeddedFontsRemoved };
 }
 
+function asUint8Array(bytes) {
+  if (bytes instanceof Uint8Array) return bytes;
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer && Buffer.isBuffer(bytes)) {
+    return new Uint8Array(bytes);
+  }
+  return new Uint8Array(bytes);
+}
+
+function readU16BE(buf, offset) {
+  return (buf[offset] << 8) | buf[offset + 1];
+}
+
+function readU32BE(buf, offset) {
+  return (
+    ((buf[offset] << 24) | (buf[offset + 1] << 16) | (buf[offset + 2] << 8) | buf[offset + 3]) >>> 0
+  );
+}
+
+function asciiAt(buf, offset, length) {
+  let out = "";
+  for (let i = 0; i < length; i++) out += String.fromCharCode(buf[offset + i]);
+  return out;
+}
+
+function readPngDimensions(buf) {
+  if (buf.length < 24) return null;
+  if (buf[0] !== 0x89 || asciiAt(buf, 1, 3) !== "PNG") return null;
+  if (asciiAt(buf, 12, 4) !== "IHDR") return null;
+  const width = readU32BE(buf, 16);
+  const height = readU32BE(buf, 20);
+  if (!width || !height) return null;
+  return { width, height };
+}
+
+function readJpegDimensions(buf) {
+  if (buf.length < 10 || buf[0] !== 0xFF || buf[1] !== 0xD8) return null;
+  let i = 2;
+  while (i + 8 < buf.length) {
+    if (buf[i] !== 0xFF) {
+      i += 1;
+      continue;
+    }
+    const marker = buf[i + 1];
+    if (marker === 0xFF) {
+      i += 1;
+      continue;
+    }
+    if (marker === 0xD8 || marker === 0xD9 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
+      i += 2;
+      continue;
+    }
+    if (i + 3 >= buf.length) break;
+    const length = readU16BE(buf, i + 2);
+    const isSof = marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC;
+    if (isSof) {
+      if (i + 8 >= buf.length) return null;
+      const height = readU16BE(buf, i + 5);
+      const width = readU16BE(buf, i + 7);
+      if (!width || !height) return null;
+      return { width, height };
+    }
+    if (length < 2) break;
+    i += 2 + length;
+  }
+  return null;
+}
+
+function readWebpDimensions(buf) {
+  if (buf.length < 30) return null;
+  if (asciiAt(buf, 0, 4) !== "RIFF" || asciiAt(buf, 8, 4) !== "WEBP") return null;
+  const fourcc = asciiAt(buf, 12, 4);
+  if (fourcc === "VP8X") {
+    if (buf.length < 30) return null;
+    const width = 1 + (buf[24] | (buf[25] << 8) | (buf[26] << 16));
+    const height = 1 + (buf[27] | (buf[28] << 8) | (buf[29] << 16));
+    return { width, height };
+  }
+  if (fourcc === "VP8L") {
+    if (buf.length < 25 || buf[20] !== 0x2F) return null;
+    const bits = buf[21] | (buf[22] << 8) | (buf[23] << 16) | (buf[24] << 24);
+    const width = (bits & 0x3FFF) + 1;
+    const height = ((bits >> 14) & 0x3FFF) + 1;
+    return { width, height };
+  }
+  if (fourcc === "VP8 ") {
+    for (let i = 20; i + 9 < buf.length; i++) {
+      if (buf[i] === 0x9D && buf[i + 1] === 0x01 && buf[i + 2] === 0x2A) {
+        const width = (buf[i + 3] | (buf[i + 4] << 8)) & 0x3FFF;
+        const height = (buf[i + 5] | (buf[i + 6] << 8)) & 0x3FFF;
+        if (!width || !height) return null;
+        return { width, height };
+      }
+    }
+  }
+  return null;
+}
+
+function readImageDimensions(bytes) {
+  const buf = asUint8Array(bytes);
+  return readPngDimensions(buf) || readJpegDimensions(buf) || readWebpDimensions(buf);
+}
+
+function parseSrcRect(xml) {
+  const match = /<a:srcRect\b([^>]*)\/?>/.exec(xml);
+  if (!match) {
+    return { l: 0, t: 0, r: 0, b: 0, visibleRatioW: 1, visibleRatioH: 1 };
+  }
+  const attrs = match[1];
+  const read = (name) => {
+    const found = new RegExp(`\\b${name}="(-?\\d+)"`).exec(attrs);
+    return found ? Number(found[1]) : 0;
+  };
+  const l = read("l");
+  const t = read("t");
+  const r = read("r");
+  const b = read("b");
+  const visibleRatioW = Math.max(0, 1 - (l + r) / SRC_RECT_BASE);
+  const visibleRatioH = Math.max(0, 1 - (t + b) / SRC_RECT_BASE);
+  return { l, t, r, b, visibleRatioW, visibleRatioH };
+}
+
+function parseExtentAttrs(tag) {
+  if (!tag) return null;
+  const cx = Number(/cx="(-?\d+)"/.exec(tag)?.[1]);
+  const cy = Number(/cy="(-?\d+)"/.exec(tag)?.[1]);
+  if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
+  return { cx: Math.abs(cx), cy: Math.abs(cy) };
+}
+
+function parseXfrmExtents(xml) {
+  const xfrmMatch = /<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>/.exec(xml);
+  if (!xfrmMatch) return null;
+  const block = xfrmMatch[0];
+  const ext = parseExtentAttrs(/<a:ext\b[^>]*>/.exec(block)?.[0]);
+  const chExt = parseExtentAttrs(/<a:chExt\b[^>]*>/.exec(block)?.[0]);
+  if (!ext) return null;
+  return {
+    cx: ext.cx,
+    cy: ext.cy,
+    chCx: chExt ? chExt.cx : 0,
+    chCy: chExt ? chExt.cy : 0,
+  };
+}
+
+function parseGroupScale(grpBlock) {
+  const prMatch = /<(?:p|a|xdr|cdr):grpSpPr\b[\s\S]*?<\/(?:p|a|xdr|cdr):grpSpPr>/.exec(grpBlock);
+  if (!prMatch) return null;
+  const xfrm = parseXfrmExtents(prMatch[0]);
+  if (!xfrm || !xfrm.cx || !xfrm.cy || !xfrm.chCx || !xfrm.chCy) return null;
+  return {
+    scaleX: xfrm.cx / xfrm.chCx,
+    scaleY: xfrm.cy / xfrm.chCy,
+  };
+}
+
+function parseBlipEmbedId(xml) {
+  const blip = /<a:blip\b[^>]*>/.exec(xml);
+  if (!blip) return null;
+  return /\br:embed="([^"]+)"/.exec(blip[0])?.[1] || null;
+}
+
+function findBalancedTaggedEnd(xml, startIndex, localName) {
+  const openRe = new RegExp(`<[A-Za-z0-9]+:${localName}(?=[\\s>/])`, "g");
+  const closeRe = new RegExp(`</[A-Za-z0-9]+:${localName}>`, "g");
+  const gt = xml.indexOf(">", startIndex);
+  if (gt === -1) return -1;
+  if (xml[gt - 1] === "/") return gt + 1;
+  let depth = 1;
+  let i = gt + 1;
+  while (i < xml.length && depth > 0) {
+    openRe.lastIndex = i;
+    closeRe.lastIndex = i;
+    const open = openRe.exec(xml);
+    const close = closeRe.exec(xml);
+    if (!close) return -1;
+    if (open && open.index < close.index) {
+      depth += 1;
+      i = open.index + open[0].length;
+    } else {
+      depth -= 1;
+      i = close.index + close[0].length;
+    }
+  }
+  return depth === 0 ? i : -1;
+}
+
+function neededPixelsForUse(displayCxEmu, displayCyEmu, visibleRatioW, visibleRatioH, ppi) {
+  const visW = visibleRatioW > 0 ? visibleRatioW : 1;
+  const visH = visibleRatioH > 0 ? visibleRatioH : 1;
+  const width = Math.max(1, Math.ceil((displayCxEmu / EMU_PER_INCH) * ppi / visW));
+  const height = Math.max(1, Math.ceil((displayCyEmu / EMU_PER_INCH) * ppi / visH));
+  return { width, height };
+}
+
+function collectPicUse(block, rIdToMedia, scaleX, scaleY, onUse) {
+  const rId = parseBlipEmbedId(block);
+  if (!rId) return;
+  const mediaPath = rIdToMedia.get(rId);
+  if (!mediaPath || !isCompressibleImagePath(mediaPath)) return;
+  const xfrm = parseXfrmExtents(block);
+  if (!xfrm || !xfrm.cx || !xfrm.cy) return;
+  const srcRect = parseSrcRect(block);
+  onUse(mediaPath, xfrm.cx * scaleX, xfrm.cy * scaleY, srcRect);
+}
+
+function walkDrawingXml(xml, rIdToMedia, scaleX, scaleY, onUse) {
+  const re = /<(?:p|a|pic|xdr|cdr):(grpSp|pic)\b/g;
+  let cursor = 0;
+  while (cursor < xml.length) {
+    re.lastIndex = cursor;
+    const match = re.exec(xml);
+    if (!match) break;
+    const kind = match[1];
+    const start = match.index;
+    const end = findBalancedTaggedEnd(xml, start, kind);
+    if (end === -1) {
+      cursor = start + match[0].length;
+      continue;
+    }
+    const block = xml.slice(start, end);
+    if (kind === "grpSp") {
+      const innerStart = xml.indexOf(">", start);
+      if (innerStart !== -1) {
+        const scale = parseGroupScale(block);
+        if (scale) {
+          walkDrawingXml(xml.slice(innerStart + 1, end), rIdToMedia, scaleX * scale.scaleX, scaleY * scale.scaleY, onUse);
+        }
+      }
+    } else {
+      collectPicUse(block, rIdToMedia, scaleX, scaleY, onUse);
+    }
+    cursor = end;
+  }
+}
+
+function collectBackgroundImageUses(xml, rIdToMedia, slideCx, slideCy, onUse) {
+  if (!slideCx || !slideCy) return;
+  const bgRe = /<(?:p|a):bg\b[\s\S]*?<\/(?:p|a):bg>/g;
+  let match;
+  while ((match = bgRe.exec(xml)) !== null) {
+    const rId = parseBlipEmbedId(match[0]);
+    if (!rId) continue;
+    const mediaPath = rIdToMedia.get(rId);
+    if (!mediaPath || !isCompressibleImagePath(mediaPath)) continue;
+    onUse(mediaPath, slideCx, slideCy, parseSrcRect(match[0]));
+  }
+}
+
+async function readSlideSizeEmu(zip) {
+  const presFile = zip.file("ppt/presentation.xml");
+  if (!presFile) return { cx: DEFAULT_SLIDE_CX_EMU, cy: DEFAULT_SLIDE_CY_EMU };
+  const xml = await presFile.async("string");
+  const tag = /<p:sldSz\b[^>]*>/.exec(xml)?.[0];
+  const parsed = parseExtentAttrs(tag || "");
+  if (!parsed || !parsed.cx || !parsed.cy) {
+    return { cx: DEFAULT_SLIDE_CX_EMU, cy: DEFAULT_SLIDE_CY_EMU };
+  }
+  return parsed;
+}
+
+function addImageCompressUse(byPath, mediaPath, displayCxEmu, displayCyEmu, srcRect) {
+  if (!byPath.has(mediaPath)) {
+    byPath.set(mediaPath, { path: mediaPath, uses: [] });
+  }
+  byPath.get(mediaPath).uses.push({
+    displayCxEmu,
+    displayCyEmu,
+    visibleRatioW: srcRect.visibleRatioW,
+    visibleRatioH: srcRect.visibleRatioH,
+  });
+}
+
+async function collectImageCompressUsages(zip) {
+  const byPath = new Map();
+  const slideSize = await readSlideSizeEmu(zip);
+  const onUse = (mediaPath, displayCxEmu, displayCyEmu, srcRect) => {
+    addImageCompressUse(byPath, mediaPath, displayCxEmu, displayCyEmu, srcRect);
+  };
+
+  for (const path of Object.keys(zip.files)) {
+    if (!path.endsWith(".rels")) continue;
+    const ownerPath = ownerPathFromRelsPath(path);
+    if (!ownerPath || !zip.files[ownerPath]) continue;
+    const rels = parseRelationships(await zip.files[path].async("string"));
+    const rIdToMedia = new Map();
+    for (const rel of rels) {
+      if (!rel.id || !rel.type.includes("/image")) continue;
+      const mediaPath = resolveZipPath(ownerPath, rel.target);
+      if (mediaPath.startsWith("ppt/media/") && isCompressibleImagePath(mediaPath)) {
+        rIdToMedia.set(rel.id, mediaPath);
+      }
+    }
+    if (rIdToMedia.size === 0) continue;
+    const xml = await zip.files[ownerPath].async("string");
+    walkDrawingXml(xml, rIdToMedia, 1, 1, onUse);
+    collectBackgroundImageUses(xml, rIdToMedia, slideSize.cx, slideSize.cy, onUse);
+  }
+
+  const items = [];
+  for (const item of byPath.values()) {
+    if (!zipEntryExists(zip, item.path)) continue;
+    const entry = zip.files[item.path];
+    const bytes = await entry.async("uint8array");
+    const dims = readImageDimensions(bytes);
+    items.push({
+      path: item.path,
+      uses: item.uses,
+      width: dims?.width || 0,
+      height: dims?.height || 0,
+      mime: mimeForMediaPath(item.path),
+      size: getZipEntrySize(entry),
+      compressedSize: getZipEntryCompressedSize(entry),
+    });
+  }
+  return items;
+}
+
+function normalizeImageCompressOptions(options = {}) {
+  const ppi = Number(options.imagePpi);
+  const quality = Number(options.jpegQuality);
+  return {
+    imagePpi: Number.isFinite(ppi) && ppi > 0 ? ppi : DEFAULT_IMAGE_PPI,
+    jpegQuality: Number.isFinite(quality) && quality > 0 && quality <= 1
+      ? quality
+      : DEFAULT_JPEG_QUALITY,
+  };
+}
+
+function buildImageCompressJobs(usages, options = {}, excludePaths = null) {
+  const { imagePpi, jpegQuality } = normalizeImageCompressOptions(options);
+  const jobs = [];
+  for (const item of usages || []) {
+    if (excludePaths && excludePaths.has(item.path)) continue;
+    if (!item.uses || item.uses.length === 0) continue;
+    if (!item.width || !item.height) continue;
+    if (!isCompressibleImagePath(item.path)) continue;
+
+    let maxScale = 0;
+    for (const use of item.uses) {
+      const needed = neededPixelsForUse(
+        use.displayCxEmu,
+        use.displayCyEmu,
+        use.visibleRatioW,
+        use.visibleRatioH,
+        imagePpi
+      );
+      const scale = Math.max(needed.width / item.width, needed.height / item.height);
+      if (scale > maxScale) maxScale = scale;
+    }
+    const scale = Math.min(1, maxScale);
+    const targetWidth = Math.max(1, Math.round(item.width * scale));
+    const targetHeight = Math.max(1, Math.round(item.height * scale));
+    const needsResize = targetWidth < item.width || targetHeight < item.height;
+    const isJpeg = /jpe?g$/i.test(item.path);
+    if (!needsResize && !isJpeg) continue;
+
+    const areaRatio = (targetWidth * targetHeight) / (item.width * item.height);
+    let factor = areaRatio;
+    if (isJpeg) factor *= jpegQuality / 0.92;
+    factor = Math.min(Math.max(factor, 0.02), 0.98);
+    const estimatedCompressed = Math.max(1, Math.round((item.compressedSize || item.size || 0) * factor));
+
+    jobs.push({
+      path: item.path,
+      mime: item.mime || mimeForMediaPath(item.path),
+      width: item.width,
+      height: item.height,
+      targetWidth,
+      targetHeight,
+      needsResize,
+      jpegQuality: isJpeg ? jpegQuality : undefined,
+      size: item.size,
+      compressedSize: item.compressedSize,
+      estimatedCompressed,
+    });
+  }
+  return jobs;
+}
+
+function mediaPathsRemovedByOptions(plan, options) {
+  const paths = new Set();
+  if (!plan) return paths;
+  if (options.removeOrphanMedia) {
+    for (const item of plan.slideOrphanMedia?.items || []) paths.add(item.path);
+  }
+  if (options.removeUnusedStructure) {
+    for (const item of plan.structureFreedMedia?.items || []) paths.add(item.path);
+  }
+  return paths;
+}
+
+function estimateImageCompressBytes(usages, options, excludePaths) {
+  return buildImageCompressJobs(usages, options, excludePaths)
+    .reduce((sum, job) => sum + Math.max(0, (job.compressedSize || 0) - job.estimatedCompressed), 0);
+}
+
+async function collectImageCompressJobs(zip, options = {}) {
+  const usages = await collectImageCompressUsages(zip);
+  return buildImageCompressJobs(usages, options);
+}
+
+function codecResultBytes(result) {
+  if (!result) return null;
+  if (result instanceof Uint8Array) return result;
+  if (result.bytes instanceof Uint8Array) return result.bytes;
+  if (result.bytes) return asUint8Array(result.bytes);
+  return null;
+}
+
+async function mapPool(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await fn(items[index], index);
+    }
+  }
+  const workers = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: workers }, worker));
+  return results;
+}
+
+async function compressImagesInZip(zip, options, codec) {
+  const empty = { count: 0, bytes: 0, skipped: 0, jobs: [] };
+  if (!options?.compressImages) return empty;
+  if (!codec || typeof codec.encode !== "function") return empty;
+
+  const jobs = await collectImageCompressJobs(zip, options);
+  let count = 0;
+  let bytes = 0;
+  let skipped = 0;
+
+  await mapPool(jobs, IMAGE_ENCODE_CONCURRENCY, async (job) => {
+    try {
+      const input = await zip.files[job.path].async("uint8array");
+      const encoded = codecResultBytes(await codec.encode(input, job));
+      if (!encoded) {
+        skipped += 1;
+        return;
+      }
+      if (encoded.byteLength >= input.byteLength) return;
+      zip.file(job.path, encoded);
+      count += 1;
+      bytes += input.byteLength - encoded.byteLength;
+    } catch {
+      skipped += 1;
+    }
+  });
+
+  return { count, bytes, skipped, jobs };
+}
+
 function zipEntryCompressedBytes(zip, path) {
   if (!zipEntryExists(zip, path)) return 0;
   return getZipEntryCompressedSize(zip.files[path]);
@@ -1187,6 +1655,14 @@ function computeReductionEstimate(plan, options, zip) {
 
   if (options.removeProperties && plan.properties.removableBytes > 0) {
     bytes += plan.properties.removableBytes;
+  }
+
+  if (options.compressImages) {
+    bytes += estimateImageCompressBytes(
+      plan.imageCompressUsages,
+      options,
+      mediaPathsRemovedByOptions(plan, options)
+    );
   }
 
   return bytes;
@@ -1332,6 +1808,7 @@ if (typeof module !== "undefined" && module.exports) {
     escapeXmlAttr,
     escapeHtml,
     isPreviewableMediaPath,
+    isCompressibleImagePath,
     mimeForMediaPath,
     formatBytes,
     formatSizeChange,
@@ -1382,6 +1859,20 @@ if (typeof module !== "undefined" && module.exports) {
     applyFontReplaceToZip,
     zipEntryCompressedBytes,
     computeReductionEstimate,
+    EMU_PER_INCH,
+    SRC_RECT_BASE,
+    DEFAULT_IMAGE_PPI,
+    DEFAULT_JPEG_QUALITY,
+    readImageDimensions,
+    parseSrcRect,
+    parseXfrmExtents,
+    parseGroupScale,
+    neededPixelsForUse,
+    collectImageCompressUsages,
+    buildImageCompressJobs,
+    collectImageCompressJobs,
+    estimateImageCompressBytes,
+    compressImagesInZip,
     replaceFontsInXml,
     buildEmbeddedFontDetail,
     mapEmbeddedFontFileSizes,

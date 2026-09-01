@@ -81,17 +81,23 @@ const mediaTableBody = document.getElementById("mediaTableBody");
 const mediaEmpty = document.getElementById("mediaEmpty");
 const cleanupPanel = document.getElementById("cleanupPanel");
 const optRemoveOrphanMedia = document.getElementById("optRemoveOrphanMedia");
+const optCompressImages = document.getElementById("optCompressImages");
+const imagePpiSelect = document.getElementById("imagePpiSelect");
+const jpegQualitySelect = document.getElementById("jpegQualitySelect");
+const compressImageOptions = document.getElementById("compressImageOptions");
 const optRemoveUnusedStructure = document.getElementById("optRemoveUnusedStructure");
 const optRemoveNotes = document.getElementById("optRemoveNotes");
 const optRemoveProperties = document.getElementById("optRemoveProperties");
 const uncheckAllOptionsBtn = document.getElementById("uncheckAllOptionsBtn");
 const cleanupOptionCheckboxes = [
   optRemoveOrphanMedia,
+  optCompressImages,
   optRemoveUnusedStructure,
   optRemoveNotes,
   optRemoveProperties,
 ];
 const orphanMediaPreview = document.getElementById("orphanMediaPreview");
+const compressImagesPreview = document.getElementById("compressImagesPreview");
 const structurePreview = document.getElementById("structurePreview");
 const structureOptionDesc = document.getElementById("structureOptionDesc");
 const notesPreview = document.getElementById("notesPreview");
@@ -324,6 +330,21 @@ function loadSettings() {
     if (typeof settings.removeOrphanMedia === "boolean") {
       optRemoveOrphanMedia.checked = settings.removeOrphanMedia;
     }
+    if (typeof settings.compressImages === "boolean") {
+      optCompressImages.checked = settings.compressImages;
+    }
+    if (settings.imagePpi != null && imagePpiSelect) {
+      const ppi = String(settings.imagePpi);
+      if ([...imagePpiSelect.options].some((opt) => opt.value === ppi)) {
+        imagePpiSelect.value = ppi;
+      }
+    }
+    if (settings.jpegQuality != null && jpegQualitySelect) {
+      const quality = String(settings.jpegQuality);
+      if ([...jpegQualitySelect.options].some((opt) => opt.value === quality)) {
+        jpegQualitySelect.value = quality;
+      }
+    }
     if (typeof settings.removeUnusedStructure === "boolean") {
       optRemoveUnusedStructure.checked = settings.removeUnusedStructure;
     }
@@ -345,6 +366,9 @@ function saveSettings() {
       bodyFont: getFontFromPicker(bodyFontSelect, bodyCustomFontInput),
       replaceFonts: optReplaceFonts.checked,
       removeOrphanMedia: optRemoveOrphanMedia.checked,
+      compressImages: optCompressImages.checked,
+      imagePpi: Number(imagePpiSelect.value) || DEFAULT_IMAGE_PPI,
+      jpegQuality: Number(jpegQualitySelect.value) || DEFAULT_JPEG_QUALITY,
       removeUnusedStructure: optRemoveUnusedStructure.checked,
       removeNotes: optRemoveNotes.checked,
       removeProperties: optRemoveProperties.checked,
@@ -482,10 +506,20 @@ function getFinalizeOptions() {
   return {
     replaceFonts: optReplaceFonts.checked,
     removeOrphanMedia: optRemoveOrphanMedia.checked,
+    compressImages: optCompressImages.checked,
+    imagePpi: Number(imagePpiSelect.value) || DEFAULT_IMAGE_PPI,
+    jpegQuality: Number(jpegQualitySelect.value) || DEFAULT_JPEG_QUALITY,
     removeUnusedStructure: optRemoveUnusedStructure.checked,
     removeNotes: optRemoveNotes.checked,
     removeProperties: optRemoveProperties.checked,
   };
+}
+
+function updateCompressOptionsState() {
+  const enabled = optCompressImages.checked;
+  if (imagePpiSelect) imagePpiSelect.disabled = !enabled;
+  if (jpegQualitySelect) jpegQualitySelect.disabled = !enabled;
+  if (compressImageOptions) compressImageOptions.hidden = !enabled;
 }
 
 function applySideTabView() {
@@ -581,6 +615,19 @@ function renderCleanupPreview() {
     ? `${formatBytes(cleanupPlan.slideOrphanMedia.totalSize)}（${cleanupPlan.slideOrphanMedia.items.length} 件` +
       `${cleanupPlan.slideOrphanMedia.missingCount ? `、参照のみ ${cleanupPlan.slideOrphanMedia.missingCount} 件` : ""}）`
     : "0 B（0 件）";
+  const compressJobs = buildImageCompressJobs(
+    cleanupPlan.imageCompressUsages,
+    getFinalizeOptions(),
+    mediaPathsRemovedByOptions(cleanupPlan, getFinalizeOptions())
+  );
+  const compressBytes = compressJobs.reduce(
+    (sum, job) => sum + Math.max(0, (job.compressedSize || 0) - job.estimatedCompressed),
+    0
+  );
+  compressImagesPreview.textContent = compressJobs.length
+    ? `${compressJobs.length} 件（見込み ${formatBytes(compressBytes)}）`
+    : "0 件";
+  updateCompressOptionsState();
   const structureMedia = cleanupPlan.structureFreedMedia;
   const structureMediaPart = structureMedia.items.length
     ? ` + 関連メディア ${structureMedia.items.length} 件（${formatBytes(structureMedia.totalCompressedSize)}）`
@@ -691,6 +738,17 @@ function renderMediaAnalysis(analysis) {
     mediaSummary.textContent = `${analysis.items.length} 件。${previewHint}`.trim();
   }
 
+  const jobsByPath = new Map();
+  if (cleanupPlan?.imageCompressUsages) {
+    for (const job of buildImageCompressJobs(cleanupPlan.imageCompressUsages, getFinalizeOptions())) {
+      jobsByPath.set(job.path, job);
+    }
+  }
+  const dimsByPath = new Map();
+  for (const item of cleanupPlan?.imageCompressUsages || []) {
+    if (item.width && item.height) dimsByPath.set(item.path, item);
+  }
+
   mediaTableBody.innerHTML = analysis.items
     .slice(0, 30)
     .map((item) => {
@@ -701,9 +759,17 @@ function renderMediaAnalysis(analysis) {
       const thumbCell = item.isPreviewable
         ? `<td class="media-thumb-cell"><span class="media-inline-thumb" data-path="${escapeHtml(item.path)}" title="ホバーで拡大"></span></td>`
         : `<td class="media-thumb-cell"></td>`;
+      const job = jobsByPath.get(item.path);
+      const dims = dimsByPath.get(item.path);
+      let pxLine = "";
+      if (job) {
+        pxLine = `<span class="media-px">${job.width}×${job.height} → ${job.targetWidth}×${job.targetHeight}</span>`;
+      } else if (dims) {
+        pxLine = `<span class="media-px">${dims.width}×${dims.height}</span>`;
+      }
       const nameCell = item.isPreviewable
-        ? `<td class="media-name media-name--preview" data-path="${escapeHtml(item.path)}" title="ホバーでプレビュー">${escapeHtml(item.name)}</td>`
-        : `<td class="media-name">${escapeHtml(item.name)}</td>`;
+        ? `<td class="media-name media-name--preview" data-path="${escapeHtml(item.path)}" title="ホバーでプレビュー">${escapeHtml(item.name)}${pxLine}</td>`
+        : `<td class="media-name">${escapeHtml(item.name)}${pxLine}</td>`;
       return `<tr${rowStyle}>
         ${thumbCell}
         ${nameCell}
@@ -713,6 +779,45 @@ function renderMediaAnalysis(analysis) {
     })
     .join("");
   populateInlineMediaThumbs();
+}
+
+async function encodeImageBytes(bytes, spec) {
+  const mime = spec.mime || "image/png";
+  const blob = new Blob([bytes], { type: mime });
+  let bitmap;
+  try {
+    const resizeOpts = spec.needsResize
+      ? {
+        resizeWidth: spec.targetWidth,
+        resizeHeight: spec.targetHeight,
+        resizeQuality: "high",
+      }
+      : {};
+    bitmap = await createImageBitmap(blob, resizeOpts);
+  } catch {
+    return null;
+  }
+  try {
+    const width = bitmap.width;
+    const height = bitmap.height;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const outMime = mime === "image/jpeg" ? "image/jpeg" : mime;
+    const quality = outMime === "image/jpeg" ? spec.jpegQuality : undefined;
+    const outBlob = await new Promise((resolve) => {
+      canvas.toBlob((result) => resolve(result), outMime, quality);
+    });
+    if (!outBlob) return null;
+    return { bytes: new Uint8Array(await outBlob.arrayBuffer()) };
+  } finally {
+    if (typeof bitmap.close === "function") bitmap.close();
+  }
 }
 
 async function extractFontsFromPptx(file) {
@@ -765,6 +870,11 @@ async function finalizePptx(file, fonts, options) {
     mediaStats = await removePackageOrphanMedia(zip);
   }
 
+  let imageStats = { count: 0, bytes: 0, skipped: 0 };
+  if (options.compressImages) {
+    imageStats = await compressImagesInZip(zip, options, { encode: encodeImageBytes });
+  }
+
   const blob = await zip.generateAsync({
     type: "blob",
     compression: "DEFLATE",
@@ -784,6 +894,9 @@ async function finalizePptx(file, fonts, options) {
     structureMediaBytes: structureStats.mediaBytes,
     orphanMediaRemoved: mediaStats.count,
     orphanMediaBytes: mediaStats.bytes,
+    imagesCompressed: imageStats.count,
+    imageCompressBytes: imageStats.bytes,
+    imagesSkipped: imageStats.skipped,
     notesRemoved: notesStats.count,
     notesBytes: notesStats.bytes,
     propertiesCleared: propertiesStats.cleared,
@@ -990,6 +1103,16 @@ function renderStats(stats) {
       `<dt>孤立メディア削除</dt><dd>${stats.orphanMediaRemoved} 件（${formatBytes(stats.orphanMediaBytes)}）</dd>`
     );
   }
+  if (stats.imagesCompressed > 0 || stats.imagesSkipped > 0) {
+    let detail = `${stats.imagesCompressed || 0} 枚`;
+    if (stats.imageCompressBytes > 0) {
+      detail += `（${formatBytes(stats.imageCompressBytes)}）`;
+    }
+    if (stats.imagesSkipped > 0) {
+      detail += `、スキップ ${stats.imagesSkipped} 枚`;
+    }
+    cleanupLines.push(`<dt>画像圧縮</dt><dd>${detail}</dd>`);
+  }
   if (stats.layoutsRemoved > 0 || stats.mastersRemoved > 0) {
     let structureDetail =
       `レイアウト ${stats.layoutsRemoved}、マスター ${stats.mastersRemoved}`;
@@ -1129,6 +1252,7 @@ function onSideTabClick(event) {
 function onCleanupOptionChange() {
   saveSettings();
   renderCleanupPreview();
+  if (mediaAnalysis) renderMediaAnalysis(mediaAnalysis);
 }
 
 function uncheckAllCleanupOptions() {
@@ -1139,6 +1263,9 @@ function uncheckAllCleanupOptions() {
 }
 
 optRemoveOrphanMedia.addEventListener("change", onCleanupOptionChange);
+optCompressImages.addEventListener("change", onCleanupOptionChange);
+imagePpiSelect.addEventListener("change", onCleanupOptionChange);
+jpegQualitySelect.addEventListener("change", onCleanupOptionChange);
 optRemoveUnusedStructure.addEventListener("change", onCleanupOptionChange);
 optRemoveNotes.addEventListener("change", onCleanupOptionChange);
 optRemoveProperties.addEventListener("change", onCleanupOptionChange);
@@ -1225,6 +1352,7 @@ overwriteBtn.addEventListener("click", runOverwrite);
 loadSettings();
 rebuildFontDropdowns();
 updateFontOptionsState();
+updateCompressOptionsState();
 setActionState();
 updateSideChrome();
 showAppVersion();
