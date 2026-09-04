@@ -329,12 +329,30 @@ describe("collectImageCompressJobs / compressImagesInZip", () => {
     return buf;
   }
 
-  function picXml(rId, cx, cy, srcRect) {
-    const crop = srcRect
+  function cropXml(srcRect) {
+    return srcRect
       ? `<a:srcRect l="${srcRect.l || 0}" t="${srcRect.t || 0}" r="${srcRect.r || 0}" b="${srcRect.b || 0}"/>`
       : "";
+  }
+
+  function picXml(rId, cx, cy, srcRect) {
+    const crop = cropXml(srcRect);
     return `<p:pic><p:blipFill><a:blip r:embed="${rId}"/>${crop}</p:blipFill>` +
       `<p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm></p:spPr></p:pic>`;
+  }
+
+  function shapeFillXml(rId, cx, cy, srcRect) {
+    return `<p:sp><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+      `<a:blipFill><a:blip r:embed="${rId}"/>${cropXml(srcRect)}</a:blipFill></p:spPr></p:sp>`;
+  }
+
+  function tableFillXml(rId, cx, cy, srcRect) {
+    return `<p:graphicFrame><p:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></p:xfrm>` +
+      `<a:graphic><a:graphicData><a:tbl>` +
+      `<a:tblGrid><a:gridCol w="${cx}"/></a:tblGrid>` +
+      `<a:tr h="${cy}"><a:tc><a:tcPr>` +
+      `<a:blipFill><a:blip r:embed="${rId}"/>${cropXml(srcRect)}</a:blipFill>` +
+      `</a:tcPr></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
   }
 
   async function buildImageZip({ photos }) {
@@ -355,9 +373,12 @@ describe("collectImageCompressJobs / compressImagesInZip", () => {
     photos.forEach((photo, index) => {
       const rId = `rId${index + 2}`;
       const mediaName = photo.name;
-      pics.push(photo.wrap
-        ? photo.wrap(picXml(rId, photo.cx, photo.cy, photo.srcRect))
-        : picXml(rId, photo.cx, photo.cy, photo.srcRect));
+      const drawing = photo.kind === "shape"
+        ? shapeFillXml(rId, photo.cx, photo.cy, photo.srcRect)
+        : photo.kind === "table"
+          ? tableFillXml(rId, photo.cx, photo.cy, photo.srcRect)
+          : picXml(rId, photo.cx, photo.cy, photo.srcRect);
+      pics.push(photo.wrap ? photo.wrap(drawing) : drawing);
       imageRels.push(rel(rId, "image", `../media/${mediaName}`));
       zip.file(`ppt/media/${mediaName}`, photo.bytes);
     });
@@ -469,5 +490,75 @@ describe("collectImageCompressJobs / compressImagesInZip", () => {
     assert.equal(result.count, 1);
     const after = await zip.files["ppt/media/hero.png"].async("uint8array");
     assert.deepEqual(Buffer.from(after), Buffer.from(smaller));
+  });
+
+  test("collects a shape picture fill as a compress job", async () => {
+    const zip = await buildImageZip({
+      photos: [{
+        name: "fill.png",
+        kind: "shape",
+        bytes: pngStub(4000, 4000, 80),
+        cx: core.EMU_PER_INCH,
+        cy: core.EMU_PER_INCH,
+      }],
+    });
+    const [job] = await core.collectImageCompressJobs(zip, { imagePpi: 150 });
+    assert.equal(job.path, "ppt/media/fill.png");
+    assert.equal(job.targetWidth, 150);
+  });
+
+  test("collects a table cell picture fill as a compress job", async () => {
+    const zip = await buildImageZip({
+      photos: [{
+        name: "cell.png",
+        kind: "table",
+        bytes: pngStub(4000, 2000, 80),
+        cx: core.EMU_PER_INCH,
+        cy: core.EMU_PER_INCH / 2,
+      }],
+    });
+    const [job] = await core.collectImageCompressJobs(zip, { imagePpi: 150 });
+    assert.equal(job.path, "ppt/media/cell.png");
+    assert.equal(job.targetWidth, 150);
+    assert.equal(job.targetHeight, 75);
+  });
+
+  test("walks pictures inside a group even when grpSpPr xfrm is missing", async () => {
+    const zip = await buildImageZip({
+      photos: [{
+        name: "grouped.png",
+        bytes: pngStub(4000, 4000, 80),
+        cx: core.EMU_PER_INCH,
+        cy: core.EMU_PER_INCH,
+        wrap: (inner) => `<p:grpSp><p:grpSpPr></p:grpSpPr>${inner}</p:grpSp>`,
+      }],
+    });
+    const [job] = await core.collectImageCompressJobs(zip, { imagePpi: 150 });
+    assert.equal(job.path, "ppt/media/grouped.png");
+    assert.equal(job.targetWidth, 150);
+  });
+});
+
+describe("readZipEntryPrefix", () => {
+  test("returns only the requested prefix of a stored entry", async () => {
+    const zip = new JSZip();
+    const payload = Buffer.alloc(80 * 1024, 7);
+    payload[0] = 0x89;
+    payload.write("PNG\r\n\x1a\n", 1);
+    payload.writeUInt32BE(13, 8);
+    payload.write("IHDR", 12);
+    payload.writeUInt32BE(640, 16);
+    payload.writeUInt32BE(480, 20);
+    zip.file("ppt/media/big.png", payload, { compression: "STORE" });
+    const loaded = await JSZip.loadAsync(await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "STORE",
+    }));
+
+    const prefix = await core.readZipEntryPrefix(loaded.files["ppt/media/big.png"], 64);
+    assert.equal(prefix.length, 64);
+    assert.equal(prefix[0], 0x89);
+    const dims = core.readImageDimensions(prefix);
+    assert.deepEqual(dims, { width: 640, height: 480 });
   });
 });

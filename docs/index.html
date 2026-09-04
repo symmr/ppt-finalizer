@@ -598,6 +598,26 @@
     .file-stats dd {
       margin: 0;
     }
+    .file-size-warning {
+      margin: 0.65rem 0 0;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid #d97706;
+      background: #fffbeb;
+      color: #92400e;
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+    .file-size-warning[hidden] {
+      display: none;
+    }
+    @media (prefers-color-scheme: dark) {
+      .file-size-warning {
+        border-color: #b45309;
+        background: #451a03;
+        color: #fbbf24;
+      }
+    }
     .analysis-stack .analysis-fold {
       border: none;
       border-radius: 0;
@@ -924,6 +944,7 @@
           <dt>仕上げ後サイズ</dt>
           <dd id="fileAnalysisAfterSize">—</dd>
         </dl>
+        <p class="file-size-warning" id="fileSizeWarning" hidden></p>
         <div class="reduction-block" id="reductionBlock" hidden>
           <div class="reduction-bar" id="reductionBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="削減見込み">
             <div class="reduction-bar-fill" id="fileAnalysisEstimateBar"></div>

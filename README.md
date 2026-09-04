@@ -34,7 +34,7 @@ PowerPoint (`.pptx`) の仕上げをブラウザ内で行うツール。ファ�
 
 ## 開発
 
-`docs/pptx-core.js`（PPTX 解析・変換ロジック）に対するユニットテストがあります。
+`docs/pptx-core.js`（PPTX 解析・変換ロジック）に対するユニットテストがあります。GitHub Actions でも `npm test` を実行します。
 
 ```sh
 npm install

@@ -31,6 +31,9 @@ const COMPRESSIBLE_IMAGE_RE = /\.(png|jpe?g|webp)$/i;
 const DEFAULT_SLIDE_CX_EMU = 12192000;
 const DEFAULT_SLIDE_CY_EMU = 6858000;
 const IMAGE_ENCODE_CONCURRENCY = 3;
+const IMAGE_DIM_PREFIX_BYTES = 256 * 1024;
+const WARN_INPUT_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_INPUT_FILE_BYTES = 200 * 1024 * 1024;
 
 function decodeXmlEntities(value) {
   return value
@@ -95,6 +98,29 @@ function formatSizeChange(before, after) {
     return `${formatBytes(-delta)} 増加（+${pct.toFixed(1)}%）`;
   }
   return "変化なし（0%）";
+}
+
+function assessInputFileSize(bytes) {
+  const size = Number(bytes) || 0;
+  if (size > MAX_INPUT_FILE_BYTES) {
+    return {
+      level: "reject",
+      bytes: size,
+      message:
+        `ファイルが大きすぎます（${formatBytes(size)}）。` +
+        `${formatBytes(MAX_INPUT_FILE_BYTES)} 以下の PPTX を指定してください。`,
+    };
+  }
+  if (size >= WARN_INPUT_FILE_BYTES) {
+    return {
+      level: "warn",
+      bytes: size,
+      message:
+        `ファイルサイズが ${formatBytes(size)} あります。` +
+        "分析・仕上げに時間がかかるか、メモリ不足になることがあります。",
+    };
+  }
+  return { level: "ok", bytes: size, message: "" };
 }
 
 function countReplace(str, re, replacement) {
@@ -1259,6 +1285,35 @@ function readImageDimensions(bytes) {
   return readPngDimensions(buf) || readJpegDimensions(buf) || readWebpDimensions(buf);
 }
 
+function copyUint8Prefix(bytes, maxBytes) {
+  const src = asUint8Array(bytes);
+  const n = Math.min(src.length, Math.max(0, maxBytes));
+  return new Uint8Array(src.subarray(0, n));
+}
+
+function isStoredZipCompression(compression) {
+  if (!compression) return false;
+  return compression.magic === "\x00\x00" || compression.name === "STORE";
+}
+
+async function readZipEntryPrefix(entry, maxBytes = IMAGE_DIM_PREFIX_BYTES) {
+  if (!entry) return new Uint8Array(0);
+  const limit = Number.isFinite(maxBytes) && maxBytes > 0 ? maxBytes : IMAGE_DIM_PREFIX_BYTES;
+  const data = entry._data;
+  if (data && isStoredZipCompression(data.compression) && data.compressedContent) {
+    const stored = data.compressedContent;
+    if (typeof stored.then === "function") {
+      return copyUint8Prefix(await stored, limit);
+    }
+    return copyUint8Prefix(stored, limit);
+  }
+  return copyUint8Prefix(await entry.async("uint8array"), limit);
+}
+
+async function readImageDimensionsFromEntry(entry) {
+  return readImageDimensions(await readZipEntryPrefix(entry, IMAGE_DIM_PREFIX_BYTES));
+}
+
 function parseSrcRect(xml) {
   const match = /<a:srcRect\b([^>]*)\/?>/.exec(xml);
   if (!match) {
@@ -1287,7 +1342,7 @@ function parseExtentAttrs(tag) {
 }
 
 function parseXfrmExtents(xml) {
-  const xfrmMatch = /<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>/.exec(xml);
+  const xfrmMatch = /<(?:a|p|xdr|cdr):xfrm\b[^>]*>[\s\S]*?<\/(?:a|p|xdr|cdr):xfrm>/.exec(xml);
   if (!xfrmMatch) return null;
   const block = xfrmMatch[0];
   const ext = parseExtentAttrs(/<a:ext\b[^>]*>/.exec(block)?.[0]);
@@ -1362,8 +1417,100 @@ function collectPicUse(block, rIdToMedia, scaleX, scaleY, onUse) {
   onUse(mediaPath, xfrm.cx * scaleX, xfrm.cy * scaleY, srcRect);
 }
 
+function readXmlTagNumber(tag, name) {
+  if (!tag) return 0;
+  const found = new RegExp(`\\b${name}="(-?\\d+)"`).exec(tag);
+  return found ? Math.abs(Number(found[1])) : 0;
+}
+
+function collectTableBlipUses(frameBlock, rIdToMedia, scaleX, scaleY, onUse) {
+  const tblOpen = /<a:tbl\b/.exec(frameBlock);
+  if (!tblOpen) return;
+  const tblEnd = findBalancedTaggedEnd(frameBlock, tblOpen.index, "tbl");
+  if (tblEnd === -1) return;
+  const tblXml = frameBlock.slice(tblOpen.index, tblEnd);
+
+  const colWidths = [];
+  const colRe = /<a:gridCol\b[^>]*>/g;
+  let colMatch;
+  while ((colMatch = colRe.exec(tblXml)) !== null) {
+    colWidths.push(readXmlTagNumber(colMatch[0], "w"));
+  }
+
+  const rowHeights = [];
+  const rows = [];
+  let rowCursor = 0;
+  while (rowCursor < tblXml.length) {
+    const sliced = tblXml.slice(rowCursor);
+    const trOpen = /<a:tr\b/.exec(sliced);
+    if (!trOpen) break;
+    const start = rowCursor + trOpen.index;
+    const end = findBalancedTaggedEnd(tblXml, start, "tr");
+    if (end === -1) break;
+    const openEnd = tblXml.indexOf(">", start);
+    const height = readXmlTagNumber(
+      openEnd === -1 ? "" : tblXml.slice(start, openEnd + 1),
+      "h"
+    );
+    rowHeights.push(height);
+    rows.push(tblXml.slice(start, end));
+    rowCursor = end;
+  }
+
+  const frameXfrm = parseXfrmExtents(frameBlock);
+  const tableW = colWidths.reduce((sum, width) => sum + width, 0);
+  const tableH = rowHeights.reduce((sum, height) => sum + height, 0);
+  const frameScaleX = frameXfrm && frameXfrm.cx && tableW ? frameXfrm.cx / tableW : 1;
+  const frameScaleY = frameXfrm && frameXfrm.cy && tableH ? frameXfrm.cy / tableH : 1;
+
+  rows.forEach((rowXml, rowIndex) => {
+    let colIndex = 0;
+    let cellCursor = 0;
+    while (cellCursor < rowXml.length && colIndex < Math.max(colWidths.length, 1)) {
+      const sliced = rowXml.slice(cellCursor);
+      const tcOpen = /<a:tc\b/.exec(sliced);
+      if (!tcOpen) break;
+      const start = cellCursor + tcOpen.index;
+      const end = findBalancedTaggedEnd(rowXml, start, "tc");
+      if (end === -1) break;
+      const cellXml = rowXml.slice(start, end);
+      const openEnd = rowXml.indexOf(">", start);
+      const openTag = openEnd === -1 ? "" : rowXml.slice(start, openEnd + 1);
+      const gridSpan = Math.max(1, readXmlTagNumber(openTag, "gridSpan") || 1);
+      const rowSpan = Math.max(1, readXmlTagNumber(openTag, "rowSpan") || 1);
+
+      let cellW = 0;
+      for (let i = 0; i < gridSpan && colIndex + i < colWidths.length; i++) {
+        cellW += colWidths[colIndex + i];
+      }
+      let cellH = 0;
+      for (let i = 0; i < rowSpan && rowIndex + i < rowHeights.length; i++) {
+        cellH += rowHeights[rowIndex + i];
+      }
+      if (!cellW && frameXfrm) cellW = frameXfrm.cx;
+      if (!cellH && frameXfrm) cellH = frameXfrm.cy;
+
+      const rId = parseBlipEmbedId(cellXml);
+      if (rId) {
+        const mediaPath = rIdToMedia.get(rId);
+        if (mediaPath && isCompressibleImagePath(mediaPath) && cellW && cellH) {
+          onUse(
+            mediaPath,
+            cellW * frameScaleX * scaleX,
+            cellH * frameScaleY * scaleY,
+            parseSrcRect(cellXml)
+          );
+        }
+      }
+
+      colIndex += 1;
+      cellCursor = end;
+    }
+  });
+}
+
 function walkDrawingXml(xml, rIdToMedia, scaleX, scaleY, onUse) {
-  const re = /<(?:p|a|pic|xdr|cdr):(grpSp|pic)\b/g;
+  const re = /<(?:p|a|pic|xdr|cdr):(graphicFrame|grpSp|cxnSp|pic|sp)\b/g;
   let cursor = 0;
   while (cursor < xml.length) {
     re.lastIndex = cursor;
@@ -1380,11 +1527,17 @@ function walkDrawingXml(xml, rIdToMedia, scaleX, scaleY, onUse) {
     if (kind === "grpSp") {
       const innerStart = xml.indexOf(">", start);
       if (innerStart !== -1) {
-        const scale = parseGroupScale(block);
-        if (scale) {
-          walkDrawingXml(xml.slice(innerStart + 1, end), rIdToMedia, scaleX * scale.scaleX, scaleY * scale.scaleY, onUse);
-        }
+        const scale = parseGroupScale(block) || { scaleX: 1, scaleY: 1 };
+        walkDrawingXml(
+          xml.slice(innerStart + 1, end),
+          rIdToMedia,
+          scaleX * scale.scaleX,
+          scaleY * scale.scaleY,
+          onUse
+        );
       }
+    } else if (kind === "graphicFrame") {
+      collectTableBlipUses(block, rIdToMedia, scaleX, scaleY, onUse);
     } else {
       collectPicUse(block, rIdToMedia, scaleX, scaleY, onUse);
     }
@@ -1459,8 +1612,7 @@ async function collectImageCompressUsages(zip) {
   for (const item of byPath.values()) {
     if (!zipEntryExists(zip, item.path)) continue;
     const entry = zip.files[item.path];
-    const bytes = await entry.async("uint8array");
-    const dims = readImageDimensions(bytes);
+    const dims = await readImageDimensionsFromEntry(entry);
     items.push({
       path: item.path,
       uses: item.uses,
@@ -1581,18 +1733,21 @@ async function mapPool(items, limit, fn) {
   return results;
 }
 
-async function compressImagesInZip(zip, options, codec) {
+async function compressImagesInZip(zip, options, codec, usages) {
   const empty = { count: 0, bytes: 0, skipped: 0, jobs: [] };
   if (!options?.compressImages) return empty;
   if (!codec || typeof codec.encode !== "function") return empty;
 
-  const jobs = await collectImageCompressJobs(zip, options);
+  const jobs = usages
+    ? buildImageCompressJobs(usages, options)
+    : await collectImageCompressJobs(zip, options);
   let count = 0;
   let bytes = 0;
   let skipped = 0;
 
   await mapPool(jobs, IMAGE_ENCODE_CONCURRENCY, async (job) => {
     try {
+      if (!zip.files[job.path]) return;
       const input = await zip.files[job.path].async("uint8array");
       const encoded = codecResultBytes(await codec.encode(input, job));
       if (!encoded) {
@@ -1863,6 +2018,12 @@ if (typeof module !== "undefined" && module.exports) {
     SRC_RECT_BASE,
     DEFAULT_IMAGE_PPI,
     DEFAULT_JPEG_QUALITY,
+    IMAGE_DIM_PREFIX_BYTES,
+    WARN_INPUT_FILE_BYTES,
+    MAX_INPUT_FILE_BYTES,
+    assessInputFileSize,
+    readZipEntryPrefix,
+    readImageDimensionsFromEntry,
     readImageDimensions,
     parseSrcRect,
     parseXfrmExtents,
