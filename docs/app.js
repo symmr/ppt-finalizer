@@ -66,6 +66,7 @@ const resultEmpty = document.getElementById("resultEmpty");
 const fileAnalysisSize = document.getElementById("fileAnalysisSize");
 const fileAnalysisSlides = document.getElementById("fileAnalysisSlides");
 const fileAnalysisAfterSize = document.getElementById("fileAnalysisAfterSize");
+const fileSizeWarning = document.getElementById("fileSizeWarning");
 const reductionBlock = document.getElementById("reductionBlock");
 const reductionBar = document.getElementById("reductionBar");
 const fileAnalysisEstimateBar = document.getElementById("fileAnalysisEstimateBar");
@@ -650,11 +651,24 @@ function renderCleanupPreview() {
   updateReductionEstimate();
 }
 
+function updateFileSizeWarning(totalFileSize) {
+  if (!fileSizeWarning) return;
+  const check = assessInputFileSize(totalFileSize);
+  if (check.level === "warn") {
+    fileSizeWarning.hidden = false;
+    fileSizeWarning.textContent = check.message;
+    return;
+  }
+  fileSizeWarning.hidden = true;
+  fileSizeWarning.textContent = "";
+}
+
 function renderFileAnalysis(totalFileSize, slideCount) {
   currentFileSize = totalFileSize;
   analysisStack.hidden = false;
   fileAnalysisSize.textContent = formatBytes(totalFileSize);
   fileAnalysisSlides.textContent = `${slideCount} 枚`;
+  updateFileSizeWarning(totalFileSize);
   updateReductionEstimate();
   setSideTab("analysis");
   updateSideChrome();
@@ -702,7 +716,21 @@ function renderFontAnalysis(fonts) {
     .join("");
 }
 
+function releasePptxZipCache() {
+  revokeMediaThumbUrls();
+  pptxZipCache = null;
+}
+
+function assertInputFileSizeAllowed(file) {
+  const check = assessInputFileSize(file?.size || 0);
+  if (check.level === "reject") {
+    throw new Error(check.message);
+  }
+  return check;
+}
+
 async function analyzePptxFile(file) {
+  assertInputFileSizeAllowed(file);
   revokeMediaThumbUrls();
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   pptxZipCache = zip;
@@ -834,7 +862,9 @@ async function finalizePptx(file, fonts, options) {
   if (!file.name.toLowerCase().endsWith(".pptx")) {
     throw new Error(".pptx ファイルを選択してください。");
   }
+  assertInputFileSizeAllowed(file);
 
+  releasePptxZipCache();
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const plan = await computeCleanupPlan(zip);
   const embeddedMap = await mapEmbeddedFontFileSizes(zip);
@@ -872,7 +902,12 @@ async function finalizePptx(file, fonts, options) {
 
   let imageStats = { count: 0, bytes: 0, skipped: 0 };
   if (options.compressImages) {
-    imageStats = await compressImagesInZip(zip, options, { encode: encodeImageBytes });
+    imageStats = await compressImagesInZip(
+      zip,
+      options,
+      { encode: encodeImageBytes },
+      plan.imageCompressUsages
+    );
   }
 
   const blob = await zip.generateAsync({
@@ -929,6 +964,7 @@ async function loadFromFile(file, handle = null) {
     revokeMediaThumbUrls();
     analysisStack.hidden = true;
     cleanupPanel.hidden = true;
+    updateFileSizeWarning(0);
     rebuildFontDropdowns();
     updateSideChrome();
     return;
@@ -958,6 +994,7 @@ async function loadFromFile(file, handle = null) {
     revokeMediaThumbUrls();
     analysisStack.hidden = true;
     cleanupPanel.hidden = true;
+    updateFileSizeWarning(0);
     rebuildFontDropdowns();
     updateSideChrome();
   } finally {
@@ -1198,6 +1235,13 @@ async function runDownload() {
     const fonts = getTargetFonts();
     const options = getFinalizeOptions();
     const result = await finalizePptx(selectedFile, fonts, options);
+    if (selectedFile && !pptxZipCache) {
+      try {
+        pptxZipCache = await JSZip.loadAsync(await selectedFile.arrayBuffer());
+      } catch {
+        /* サムネイル用キャッシュの復旧失敗は無視 */
+      }
+    }
     const outputName = outputFilename(selectedFile.name);
     downloadBlob(result.blob, outputName);
     renderStats({ ...result, outputName, saveMode: "download" });

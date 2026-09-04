@@ -11,6 +11,16 @@
 ### Added
 
 - Splunk RUM（`@splunk/otel-web` v3.1.0）と Session Replay
+- 画像圧縮の対象を図形の画像塗り（`p:sp` + `a:blipFill`）と表セルの画像に拡大
+- ファイルサイズの警告（50 MB）と上限（200 MB）
+- GitHub Actions で `npm test` を実行
+
+### Changed
+
+- 分析時の画像寸法読み取りをヘッダ（先頭 256 KB）のみに変更
+- 仕上げ前に分析用 ZIP キャッシュを解放してから再ロード
+- グループに `xfrm` が無くても子画像を走査
+- `package.json` の版数を画面表示（`docs/version.json`）と揃える
 
 ## [1.3.0] - 2026-09-01
 

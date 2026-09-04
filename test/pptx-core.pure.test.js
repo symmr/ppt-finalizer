@@ -27,6 +27,19 @@ describe("XML entity helpers", () => {
   });
 });
 
+describe("assessInputFileSize", () => {
+  test("accepts a typical deck without a warning", () => {
+    const result = core.assessInputFileSize(12 * 1024 * 1024);
+    assert.equal(result.level, "ok");
+  });
+
+  test("warns at 50 MB and rejects above 200 MB", () => {
+    assert.equal(core.assessInputFileSize(core.WARN_INPUT_FILE_BYTES).level, "warn");
+    assert.equal(core.assessInputFileSize(core.MAX_INPUT_FILE_BYTES).level, "warn");
+    assert.equal(core.assessInputFileSize(core.MAX_INPUT_FILE_BYTES + 1).level, "reject");
+  });
+});
+
 describe("formatBytes / formatSizeChange", () => {
   test("formats bytes, kilobytes, and megabytes", () => {
     assert.equal(core.formatBytes(500), "500 B");
@@ -130,6 +143,17 @@ describe("readImageDimensions", () => {
     buf.writeUInt32BE(4000, 16);
     buf.writeUInt32BE(2250, 20);
     assert.deepEqual(core.readImageDimensions(buf), { width: 4000, height: 2250 });
+  });
+
+  test("reads PNG dimensions from only the IHDR prefix", () => {
+    const buf = Buffer.alloc(24);
+    buf[0] = 0x89;
+    buf.write("PNG\r\n\x1a\n", 1);
+    buf.writeUInt32BE(13, 8);
+    buf.write("IHDR", 12);
+    buf.writeUInt32BE(4000, 16);
+    buf.writeUInt32BE(2250, 20);
+    assert.deepEqual(core.readImageDimensions(buf.subarray(0, 24)), { width: 4000, height: 2250 });
   });
 
   test("reads width and height from a JPEG SOF0 marker", () => {
