@@ -1176,7 +1176,7 @@ function downloadBlob(blob, filename) {
 }
 
 function outputFilename(originalName) {
-  return `${originalName.replace(/\.pptx$/i, "")}_finalized.pptx`;
+  return `${originalName.replace(/\.pptx$/i, "")}_slimmed.pptx`;
 }
 
 function clearAll() {
