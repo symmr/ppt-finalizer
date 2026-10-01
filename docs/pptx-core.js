@@ -32,8 +32,6 @@ const DEFAULT_SLIDE_CX_EMU = 12192000;
 const DEFAULT_SLIDE_CY_EMU = 6858000;
 const IMAGE_ENCODE_CONCURRENCY = 3;
 const IMAGE_DIM_PREFIX_BYTES = 256 * 1024;
-const MAX_INPUT_FILE_BYTES = 200 * 1024 * 1024;
-
 function decodeXmlEntities(value) {
   return value
     .replace(/&quot;/g, '"')
@@ -97,20 +95,6 @@ function formatSizeChange(before, after) {
     return `${formatBytes(-delta)} 増加（+${pct.toFixed(1)}%）`;
   }
   return "変化なし（0%）";
-}
-
-function assessInputFileSize(bytes) {
-  const size = Number(bytes) || 0;
-  if (size > MAX_INPUT_FILE_BYTES) {
-    return {
-      level: "reject",
-      bytes: size,
-      message:
-        `ファイルが大きすぎます（${formatBytes(size)}）。` +
-        `${formatBytes(MAX_INPUT_FILE_BYTES)} 以下の PPTX を指定してください。`,
-    };
-  }
-  return { level: "ok", bytes: size, message: "" };
 }
 
 function countReplace(str, re, replacement) {
@@ -2009,8 +1993,6 @@ if (typeof module !== "undefined" && module.exports) {
     DEFAULT_IMAGE_PPI,
     DEFAULT_JPEG_QUALITY,
     IMAGE_DIM_PREFIX_BYTES,
-    MAX_INPUT_FILE_BYTES,
-    assessInputFileSize,
     readZipEntryPrefix,
     readImageDimensionsFromEntry,
     readImageDimensions,

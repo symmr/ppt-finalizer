@@ -707,16 +707,7 @@ function releasePptxZipCache() {
   pptxZipCache = null;
 }
 
-function assertInputFileSizeAllowed(file) {
-  const check = assessInputFileSize(file?.size || 0);
-  if (check.level === "reject") {
-    throw new Error(check.message);
-  }
-  return check;
-}
-
 async function analyzePptxFile(file) {
-  assertInputFileSizeAllowed(file);
   revokeMediaThumbUrls();
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   pptxZipCache = zip;
@@ -848,8 +839,6 @@ async function finalizePptx(file, fonts, options) {
   if (!file.name.toLowerCase().endsWith(".pptx")) {
     throw new Error(".pptx ファイルを選択してください。");
   }
-  assertInputFileSizeAllowed(file);
-
   releasePptxZipCache();
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const plan = await computeCleanupPlan(zip);

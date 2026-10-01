@@ -27,19 +27,6 @@ describe("XML entity helpers", () => {
   });
 });
 
-describe("assessInputFileSize", () => {
-  test("accepts a typical deck without a warning", () => {
-    const result = core.assessInputFileSize(12 * 1024 * 1024);
-    assert.equal(result.level, "ok");
-  });
-
-  test("rejects above 200 MB without a size warning", () => {
-    assert.equal(core.assessInputFileSize(100 * 1024 * 1024).level, "ok");
-    assert.equal(core.assessInputFileSize(core.MAX_INPUT_FILE_BYTES).level, "ok");
-    assert.equal(core.assessInputFileSize(core.MAX_INPUT_FILE_BYTES + 1).level, "reject");
-  });
-});
-
 describe("formatBytes / formatSizeChange", () => {
   test("formats bytes, kilobytes, and megabytes", () => {
     assert.equal(core.formatBytes(500), "500 B");
