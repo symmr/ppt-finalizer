@@ -32,7 +32,6 @@ const DEFAULT_SLIDE_CX_EMU = 12192000;
 const DEFAULT_SLIDE_CY_EMU = 6858000;
 const IMAGE_ENCODE_CONCURRENCY = 3;
 const IMAGE_DIM_PREFIX_BYTES = 256 * 1024;
-const WARN_INPUT_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_INPUT_FILE_BYTES = 200 * 1024 * 1024;
 
 function decodeXmlEntities(value) {
@@ -109,15 +108,6 @@ function assessInputFileSize(bytes) {
       message:
         `ファイルが大きすぎます（${formatBytes(size)}）。` +
         `${formatBytes(MAX_INPUT_FILE_BYTES)} 以下の PPTX を指定してください。`,
-    };
-  }
-  if (size >= WARN_INPUT_FILE_BYTES) {
-    return {
-      level: "warn",
-      bytes: size,
-      message:
-        `ファイルサイズが ${formatBytes(size)} あります。` +
-        "分析・仕上げに時間がかかるか、メモリ不足になることがあります。",
     };
   }
   return { level: "ok", bytes: size, message: "" };
@@ -2019,7 +2009,6 @@ if (typeof module !== "undefined" && module.exports) {
     DEFAULT_IMAGE_PPI,
     DEFAULT_JPEG_QUALITY,
     IMAGE_DIM_PREFIX_BYTES,
-    WARN_INPUT_FILE_BYTES,
     MAX_INPUT_FILE_BYTES,
     assessInputFileSize,
     readZipEntryPrefix,

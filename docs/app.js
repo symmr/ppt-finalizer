@@ -66,7 +66,6 @@ const resultEmpty = document.getElementById("resultEmpty");
 const fileAnalysisSize = document.getElementById("fileAnalysisSize");
 const fileAnalysisSlides = document.getElementById("fileAnalysisSlides");
 const fileAnalysisAfterSize = document.getElementById("fileAnalysisAfterSize");
-const fileSizeWarning = document.getElementById("fileSizeWarning");
 const reductionBlock = document.getElementById("reductionBlock");
 const reductionBar = document.getElementById("reductionBar");
 const fileAnalysisEstimateBar = document.getElementById("fileAnalysisEstimateBar");
@@ -651,24 +650,11 @@ function renderCleanupPreview() {
   updateReductionEstimate();
 }
 
-function updateFileSizeWarning(totalFileSize) {
-  if (!fileSizeWarning) return;
-  const check = assessInputFileSize(totalFileSize);
-  if (check.level === "warn") {
-    fileSizeWarning.hidden = false;
-    fileSizeWarning.textContent = check.message;
-    return;
-  }
-  fileSizeWarning.hidden = true;
-  fileSizeWarning.textContent = "";
-}
-
 function renderFileAnalysis(totalFileSize, slideCount) {
   currentFileSize = totalFileSize;
   analysisStack.hidden = false;
   fileAnalysisSize.textContent = formatBytes(totalFileSize);
   fileAnalysisSlides.textContent = `${slideCount} 枚`;
-  updateFileSizeWarning(totalFileSize);
   updateReductionEstimate();
   setSideTab("analysis");
   updateSideChrome();
@@ -964,7 +950,6 @@ async function loadFromFile(file, handle = null) {
     revokeMediaThumbUrls();
     analysisStack.hidden = true;
     cleanupPanel.hidden = true;
-    updateFileSizeWarning(0);
     rebuildFontDropdowns();
     updateSideChrome();
     return;
@@ -994,7 +979,6 @@ async function loadFromFile(file, handle = null) {
     revokeMediaThumbUrls();
     analysisStack.hidden = true;
     cleanupPanel.hidden = true;
-    updateFileSizeWarning(0);
     rebuildFontDropdowns();
     updateSideChrome();
   } finally {

@@ -33,9 +33,9 @@ describe("assessInputFileSize", () => {
     assert.equal(result.level, "ok");
   });
 
-  test("warns at 50 MB and rejects above 200 MB", () => {
-    assert.equal(core.assessInputFileSize(core.WARN_INPUT_FILE_BYTES).level, "warn");
-    assert.equal(core.assessInputFileSize(core.MAX_INPUT_FILE_BYTES).level, "warn");
+  test("rejects above 200 MB without a size warning", () => {
+    assert.equal(core.assessInputFileSize(100 * 1024 * 1024).level, "ok");
+    assert.equal(core.assessInputFileSize(core.MAX_INPUT_FILE_BYTES).level, "ok");
     assert.equal(core.assessInputFileSize(core.MAX_INPUT_FILE_BYTES + 1).level, "reject");
   });
 });
