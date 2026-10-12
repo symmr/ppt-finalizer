@@ -99,7 +99,6 @@ const cleanupOptionCheckboxes = [
 const orphanMediaPreview = document.getElementById("orphanMediaPreview");
 const compressImagesPreview = document.getElementById("compressImagesPreview");
 const structurePreview = document.getElementById("structurePreview");
-const structureOptionDesc = document.getElementById("structureOptionDesc");
 const notesPreview = document.getElementById("notesPreview");
 const propertiesPreview = document.getElementById("propertiesPreview");
 const mediaThumbTooltip = document.getElementById("mediaThumbTooltip");
@@ -110,7 +109,7 @@ if (!supportsFsAccess) {
   openBtn.hidden = true;
   pickBtn.hidden = false;
   overwriteBtn.hidden = true;
-  fsNote.textContent = "このブラウザでは別名ダウンロードのみ利用できます。上書き保存は Chrome / Edge をご利用ください。";
+  fsNote.hidden = true;
 } else {
   overwriteBtn.hidden = false;
 }
@@ -606,11 +605,6 @@ function renderCleanupPreview() {
     return;
   }
   cleanupPanel.hidden = false;
-  const slideCount = cleanupPlan.structure.slidePathToNum.size;
-  if (structureOptionDesc) {
-    structureOptionDesc.textContent =
-      `${slideCount} 枚のスライドから参照されていない型・マスター XML および関連するメディアを削除します`;
-  }
   orphanMediaPreview.textContent = cleanupPlan.slideOrphanMedia.items.length
     ? `${formatBytes(cleanupPlan.slideOrphanMedia.totalSize)}（${cleanupPlan.slideOrphanMedia.items.length} 件` +
       `${cleanupPlan.slideOrphanMedia.missingCount ? `、参照のみ ${cleanupPlan.slideOrphanMedia.missingCount} 件` : ""}）`
@@ -673,8 +667,6 @@ function renderFontAnalysis(fonts) {
 
   analysisStack.hidden = false;
   fontEmpty.hidden = true;
-  const totalUses = fonts.reduce((sum, font) => sum + font.count, 0);
-  const embeddedKinds = fonts.filter((font) => font.fileBytes > 0).length;
   let totalEmbedded = 0;
   if (pptxZipCache) {
     for (const path of Object.keys(pptxZipCache.files)) {
@@ -683,9 +675,6 @@ function renderFontAnalysis(fonts) {
     }
   }
   fontAnalysisBadge.textContent = `${fonts.length} 種類 / 埋込 ${formatBytes(totalEmbedded)}`;
-  fontSummary.textContent =
-    `検出フォント: ${fonts.length} 種類 / typeface 合計: ${totalUses} 箇所 / ` +
-    `埋込フォント: ${embeddedKinds} 種類（${formatBytes(totalEmbedded)}）`;
 
   fontTableBody.innerHTML = fonts
     .map((font) => {
@@ -723,7 +712,7 @@ async function analyzePptxFile(file) {
 function renderMediaAnalysis(analysis) {
   if (!analysis || analysis.items.length === 0) {
     mediaAnalysisBadge.textContent = "メディアなし";
-    mediaSummary.textContent = "ppt/media/ 内のメディアはありません。";
+    mediaSummary.textContent = "";
     mediaTableBody.innerHTML = "";
     mediaEmpty.hidden = false;
     return;
@@ -733,15 +722,7 @@ function renderMediaAnalysis(analysis) {
   mediaAnalysisBadge.textContent =
     `${formatBytes(analysis.totalMediaCompressedSize)} / 未使用メディア ${formatBytes(analysis.orphanMediaCompressedSize)}`;
 
-  const previewableCount = analysis.items.filter((item) => item.isPreviewable).length;
-  const previewHint = previewableCount > 0
-    ? "プレビュー列／ホバーで拡大。"
-    : "";
-  if (analysis.items.length > 30) {
-    mediaSummary.textContent = `サイズ上位 30 件。${previewHint}`.trim();
-  } else {
-    mediaSummary.textContent = `${analysis.items.length} 件。${previewHint}`.trim();
-  }
+  mediaSummary.textContent = analysis.items.length > 30 ? "サイズ上位 30 件" : "";
 
   const jobsByPath = new Map();
   if (cleanupPlan?.imageCompressUsages) {
@@ -1025,7 +1006,7 @@ async function loadFromDrop(dataTransfer) {
 
 async function overwriteOriginal() {
   if (!selectedFile || !sourceFileHandle) {
-    throw new Error("上書き保存するには「ファイルを開く（上書き可）」で PPTX を選んでください。");
+    throw new Error("上書き保存するには「ファイルを開く」で PPTX を選んでください。");
   }
 
   if (!(await verifyPermission(sourceFileHandle, true))) {
@@ -1149,7 +1130,6 @@ function renderStats(stats) {
     ? `<dt>タイトルフォント</dt><dd>${escapeHtml(stats.titleFont)}</dd>
        <dt>本文フォント</dt><dd>${escapeHtml(stats.bodyFont)}</dd>
        <dt>置換されたフォント</dt><dd>${convertedFontCount} フォント</dd>
-       <dt>typeface 置換数</dt><dd>${stats.replacements}</dd>
        <dt>埋め込みフォント削除</dt><dd>${embeddedLine}</dd>`
     : `<dt>フォント統一</dt><dd>未実施（元のフォントのまま）</dd>`;
 

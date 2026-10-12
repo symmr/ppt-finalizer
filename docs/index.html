@@ -752,7 +752,6 @@
   <main>
     <header class="page-header">
       <h1>PPT Finalizer</h1>
-      <p class="lead">PowerPoint (.pptx) の不要データ削除・フォント統一処理をブラウザ内で行います。ファイルはサーバーへ送信されません。</p>
     </header>
 
     <div class="layout">
@@ -762,16 +761,14 @@
         <p><strong>.pptx</strong> をドロップ</p>
         <p class="hint">PowerPoint で開いているファイルは閉じてから</p>
         <div class="open-row">
-          <button type="button" class="secondary" id="openBtn">ファイルを開く（上書き可）</button>
-          <button type="button" class="secondary" id="pickBtn" hidden>ファイルを選ぶ（ダウンロードのみ）</button>
+          <button type="button" class="secondary" id="openBtn">ファイルを開く</button>
+          <button type="button" class="secondary" id="pickBtn" hidden>ファイルを選ぶ</button>
         </div>
         <p class="file-name" id="fileName"></p>
         <span class="file-mode" id="fileMode" hidden></span>
       </div>
       <p class="file-area-note" id="fsNote">
-        上書き保存は Chrome / Edge など File System Access API 対応ブラウザで利用できます。
-        初回上書き時のみ、バックアップ保存用にフォルダ確認ダイアログが出る場合があります（元ファイルと同じフォルダを選んでください）。
-        表示には PC に指定フォントがインストールされている必要があります。
+        初回の上書きでは、元ファイルと同じフォルダを選んでください
       </p>
       <input type="file" id="fileInput" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
 
@@ -782,8 +779,7 @@
         <label class="check-row">
           <input type="checkbox" id="optReplaceFonts" checked>
           <span>
-            タイトル／本文フォントを統一する
-            <div class="check-desc">チェックを外すと、フォントは元のまま変更しません</div>
+            タイトル／本文フォントを統一
           </span>
         </label>
         <div class="font-row">
@@ -822,15 +818,13 @@
           <input type="checkbox" id="optRemoveOrphanMedia" checked>
           <span>
             孤立メディアを削除
-            <div class="check-desc">パッケージ内のどの rel からも参照されていない画像・動画を削除</div>
             <div class="check-desc">削除予定: <span class="preview-strong" id="orphanMediaPreview">—</span></div>
           </span>
         </label>
         <label class="check-row">
           <input type="checkbox" id="optCompressImages" checked>
           <span>
-            画像を圧縮する
-            <div class="check-desc">スライド上の表示サイズに対する解像度（ppi）で縮小し、JPEG は再圧縮します</div>
+            画像を圧縮
             <div class="check-desc">対象: <span class="preview-strong" id="compressImagesPreview">—</span></div>
           </span>
         </label>
@@ -851,7 +845,6 @@
           <input type="checkbox" id="optRemoveUnusedStructure">
           <span>
             未使用レイアウト／マスターを削除
-            <div class="check-desc" id="structureOptionDesc">スライドから参照されていない型・マスター XML および関連するメディアを削除します</div>
             <div class="check-desc">削除予定: <span class="preview-strong" id="structurePreview">—</span></div>
           </span>
         </label>
@@ -859,7 +852,6 @@
           <input type="checkbox" id="optRemoveNotes">
           <span>
             スピーカーノートを削除
-            <div class="check-desc">各スライドのノート領域（notesSlide）を削除します</div>
             <div class="check-desc">削除予定: <span class="preview-strong" id="notesPreview">—</span></div>
           </span>
         </label>
@@ -867,7 +859,6 @@
           <input type="checkbox" id="optRemoveProperties">
           <span>
             ファイルプロパティを削除
-            <div class="check-desc">作成者・会社名・カスタムプロパティ・サムネイル等のメタデータをクリアします</div>
             <div class="check-desc">削除予定: <span class="preview-strong" id="propertiesPreview">—</span></div>
           </span>
         </label>
@@ -893,8 +884,6 @@
           <button type="button" class="side-tab" id="sideTabResultBtn" data-side-tab="result" role="tab" aria-selected="false" aria-controls="sideTabResult">結果<span class="side-tab-badge" id="resultTabBadge" hidden aria-label="新しい結果">●</span></button>
         </div>
         <div class="layout-side-scroll">
-          <p class="side-placeholder" id="sidePlaceholder">PPTX を開くと、ここに分析と処理結果が表示されます。</p>
-
           <div class="side-tab-panel" id="sideTabAnalysis" data-side-panel="analysis" role="tabpanel" aria-labelledby="sideTabAnalysisBtn">
             <section class="panel analysis-stack" id="analysisStack" hidden>
       <div class="file-analysis" id="fileAnalysis">
@@ -932,7 +921,7 @@
               <tbody id="fontTableBody"></tbody>
             </table>
           </div>
-          <p class="analysis-empty" id="fontEmpty" hidden>typeface 属性は見つかりませんでした。</p>
+          <p class="analysis-empty" id="fontEmpty" hidden></p>
         </div>
       </details>
 
@@ -956,14 +945,13 @@
               <tbody id="mediaTableBody"></tbody>
             </table>
           </div>
-          <p class="analysis-empty" id="mediaEmpty" hidden>ppt/media/ 内のメディアは見つかりませんでした。</p>
+          <p class="analysis-empty" id="mediaEmpty" hidden></p>
         </div>
       </details>
             </section>
           </div>
 
           <div class="side-tab-panel" id="sideTabResult" data-side-panel="result" role="tabpanel" aria-labelledby="sideTabResultBtn" hidden>
-            <p class="analysis-empty" id="resultEmpty">仕上げると結果がここに表示されます。</p>
             <section class="panel" id="resultPanel" hidden>
               <div id="stats"></div>
             </section>
@@ -972,10 +960,7 @@
       </aside>
     </div>
 
-    <p class="disclaimer">
-      本ツールのご利用および処理結果については、利用者ご自身の責任において行ってください。
-      処理されたファイルに関して生じたいかなる問題についても、作者は一切の責任を負いません。
-    </p>
+    <p class="disclaimer">ご利用は自己責任でお願いします。</p>
     <p class="app-version" id="appVersionLine" hidden>
       <a href="https://github.com/symmr/ppt-finalizer/" target="_blank" rel="noopener noreferrer">GitHub</a>
       · <span id="appVersion"></span>
