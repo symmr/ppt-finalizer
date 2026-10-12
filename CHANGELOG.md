@@ -6,6 +6,17 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [1.4.2] - 2026-10-12
+
+### Changed
+
+- 画面の説明文を整理（ヘッダー、整理オプション、空状態、分析サマリー、免責）
+- ボタン名を簡潔化（「ファイルを開く」「ファイルを選ぶ」）
+
+### Removed
+
+- 結果表示の「typeface 置換数」
+
 ## [1.4.1] - 2026-09-04
 
 ### Removed
@@ -123,6 +134,7 @@
 - 上書き保存（File System Access API、バックアップ付き）と別名ダウンロード
 - フォント選択・整理オプションの設定記憶（localStorage）
 
+[1.4.2]: https://github.com/symmr/ppt-finalizer/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/symmr/ppt-finalizer/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/symmr/ppt-finalizer/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/symmr/ppt-finalizer/compare/v1.2.7...v1.3.0
