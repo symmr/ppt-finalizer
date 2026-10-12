@@ -9,33 +9,44 @@
   <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
   <link rel="icon" href="favicon-16.png" type="image/png" sizes="16x16">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap">
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
   <style>
     :root {
       color-scheme: light dark;
-      --bg: #f5f5f4;
+      --bg: rgb(251, 252, 253);
       --surface: #fff;
-      --border: #d6d3d1;
-      --text: #1c1917;
-      --muted: #78716c;
-      --accent: #2563eb;
-      --accent-hover: #1d4ed8;
-      --drop: #eff6ff;
-      --ok-bg: #ecfdf5;
-      --ok-text: #166534;
+      --surface-tint: rgb(241, 242, 243);
+      --border: oklch(0.91 0.004 250);
+      --text: oklch(0.18 0.005 250);
+      --muted: oklch(0.45 0.005 250);
+      --accent: rgb(38, 1, 253);
+      --accent-hover: oklch(0.4 0.27 268);
+      --drop: oklch(0.97 0.02 268);
+      --ok-bg: oklch(0.96 0.03 268);
+      --ok-text: rgb(38, 1, 253);
+      --shadow-lift: oklch(0 0 0 / 0.08) 0 1px 3px;
+      --shadow-float: oklch(0 0 0 / 0.06) 0 4px 12px;
+      --accent-glow: rgba(38, 1, 253, 0.3) 0 1px 3px;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0c0a09;
-        --surface: #1c1917;
-        --border: #44403c;
-        --text: #fafaf9;
-        --muted: #a8a29e;
-        --accent: #3b82f6;
-        --accent-hover: #60a5fa;
-        --drop: #172554;
-        --ok-bg: #052e16;
-        --ok-text: #86efac;
+        --bg: oklch(0.16 0.005 250);
+        --surface: oklch(0.2 0.005 250);
+        --surface-tint: oklch(0.25 0.005 250);
+        --border: oklch(0.3 0.005 250);
+        --text: oklch(0.96 0.003 250);
+        --muted: oklch(0.7 0.005 250);
+        --accent: oklch(0.56 0.24 268);
+        --accent-hover: oklch(0.64 0.2 268);
+        --drop: oklch(0.25 0.06 268);
+        --ok-bg: oklch(0.28 0.08 268);
+        --ok-text: oklch(0.85 0.08 268);
+        --shadow-lift: oklch(0 0 0 / 0.4) 0 1px 3px;
+        --shadow-float: oklch(0 0 0 / 0.3) 0 4px 12px;
+        --accent-glow: oklch(0.56 0.24 268 / 0.4) 0 1px 3px;
       }
     }
     * { box-sizing: border-box; }
@@ -216,12 +227,7 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 0.85rem 1rem;
-      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
-    }
-    @media (prefers-color-scheme: dark) {
-      .actions-sticky-inner {
-        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
-      }
+      box-shadow: var(--shadow-lift), var(--shadow-float);
     }
     .actions-sticky .actions {
       margin-top: 0;
@@ -710,7 +716,7 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+      box-shadow: var(--shadow-lift), var(--shadow-float);
       max-width: min(320px, 92vw);
     }
     .media-thumb-tooltip img {
@@ -745,6 +751,113 @@
     }
     .app-version a:hover {
       color: var(--accent);
+    }
+    /* SmoothUI 風: Geist、6px 角丸、2 段シャドウ、単一アクセント */
+    body {
+      font-family: "Geist", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.625;
+    }
+    h1 {
+      font-size: 2.5rem;
+      line-height: 46px;
+      letter-spacing: -0.8px;
+      margin-bottom: 0.5rem;
+    }
+    .page-header {
+      margin-bottom: 1.5rem;
+    }
+    .lead {
+      margin: 0;
+      font-size: 14px;
+      line-height: 22.75px;
+    }
+    .section-title {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+    .check-row,
+    label,
+    .font-row label {
+      font-weight: 500;
+    }
+    .panel,
+    .side-tabs,
+    .actions-sticky-inner {
+      border-radius: 6px;
+      border-color: var(--border);
+      box-shadow: var(--shadow-lift), var(--shadow-float);
+    }
+    .layout-main > .panel .panel {
+      box-shadow: none;
+    }
+    .media-thumb-tooltip {
+      border-radius: 6px;
+    }
+    .side-tab {
+      border-radius: 4px;
+    }
+    .side-tab.is-active {
+      background: var(--surface-tint);
+    }
+    .side-tab-badge {
+      color: var(--accent);
+    }
+    .dropzone {
+      border-width: 1.5px;
+      border-radius: 6px;
+    }
+    input[type="text"],
+    select,
+    .font-preview {
+      border-radius: 4px;
+      background: var(--surface);
+    }
+    input[type="text"]:focus-visible,
+    select:focus-visible,
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+    button {
+      border-radius: 6px;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .primary {
+      box-shadow: var(--accent-glow);
+    }
+    .secondary:not(:disabled):hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .link-btn {
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .link-btn:hover {
+      color: var(--accent);
+    }
+    .file-mode {
+      border-radius: 18px;
+      font-weight: 500;
+    }
+    .reduction-bar {
+      background: var(--surface-tint);
+      border: none;
+    }
+    .analysis-fold summary {
+      font-weight: 500;
+    }
+    .stats dd,
+    .file-stats dd,
+    .fold-badge,
+    .preview-strong {
+      font-variant-numeric: tabular-nums;
     }
   </style>
 </head>
