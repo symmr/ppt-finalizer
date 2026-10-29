@@ -42,8 +42,6 @@ const bodyFontSelect = document.getElementById("bodyFontSelect");
 const bodyCustomFontInput = document.getElementById("bodyCustomFontInput");
 const scanningMsg = document.getElementById("scanningMsg");
 const dropzone = document.getElementById("dropzone");
-const openBtn = document.getElementById("openBtn");
-const pickBtn = document.getElementById("pickBtn");
 const fileInput = document.getElementById("fileInput");
 const fileNameEl = document.getElementById("fileName");
 const fileModeEl = document.getElementById("fileMode");
@@ -106,8 +104,6 @@ const mediaThumbImg = mediaThumbTooltip.querySelector("img");
 const mediaThumbFallback = mediaThumbTooltip.querySelector(".media-thumb-fallback");
 
 if (!supportsFsAccess) {
-  openBtn.hidden = true;
-  pickBtn.hidden = false;
   overwriteBtn.hidden = true;
   fsNote.hidden = true;
 } else {
@@ -438,7 +434,7 @@ function friendlyFsError(err) {
     err?.name === "InvalidStateError" &&
     msg.includes("state cached in an interface object")
   ) {
-    return "ファイルまたはフォルダの状態がディスク上で変わりました。PowerPoint で開いていないか確認し、OneDrive 等の同期が終わってから「ファイルを開く」で選び直してください。";
+    return "ファイルまたはフォルダの状態がディスク上で変わりました。PowerPoint で開いていないか確認し、OneDrive 等の同期が終わってからファイルを選び直してください。";
   }
   return msg;
 }
@@ -1006,7 +1002,7 @@ async function loadFromDrop(dataTransfer) {
 
 async function overwriteOriginal() {
   if (!selectedFile || !sourceFileHandle) {
-    throw new Error("上書き保存するには「ファイルを開く」で PPTX を選んでください。");
+    throw new Error("上書き保存するにはファイルを選び直してください。");
   }
 
   if (!(await verifyPermission(sourceFileHandle, true))) {
@@ -1292,8 +1288,13 @@ mediaTableBody.addEventListener("mouseout", (event) => {
   hideMediaThumb();
 });
 
-openBtn.addEventListener("click", openFileWithHandle);
-pickBtn.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("click", openFileWithHandle);
+dropzone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openFileWithHandle();
+  }
+});
 
 fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
@@ -1303,14 +1304,14 @@ fileInput.addEventListener("change", () => {
 ["dragenter", "dragover"].forEach((ev) => {
   dropzone.addEventListener(ev, (e) => {
     e.preventDefault();
-    dropzone.classList.add("dragover");
+    dropzone.classList.add("is-drag");
   });
 });
 
 ["dragleave", "drop"].forEach((ev) => {
   dropzone.addEventListener(ev, (e) => {
     e.preventDefault();
-    dropzone.classList.remove("dragover");
+    dropzone.classList.remove("is-drag");
   });
 });
 

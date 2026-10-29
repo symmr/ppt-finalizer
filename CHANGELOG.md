@@ -6,6 +6,12 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠。
 
+## [Unreleased]
+
+### Changed
+
+- ファイル選択を「ファイルを選択」と `.pptx` の2行に変更。ドロップゾーンをクリックして開く
+
 ## [1.4.2] - 2026-10-12
 
 ### Changed
