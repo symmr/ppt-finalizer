@@ -325,18 +325,21 @@
       margin-top: 0.5rem;
     }
     .dropzone {
-      border: 2px dashed var(--border);
-      border-radius: 8px;
-      padding: 1.5rem 1rem;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      padding: 1.75rem 1rem;
       text-align: center;
+      background: var(--surface-tint);
+      cursor: pointer;
       transition: border-color 0.15s, background 0.15s;
     }
-    .dropzone.dragover {
+    .dropzone:hover,
+    .dropzone.is-drag {
       border-color: var(--accent);
       background: var(--drop);
     }
-    .dropzone p { margin: 0.25rem 0; }
-    .dropzone .hint { color: var(--muted); font-size: 0.85rem; }
+    .dropzone strong { color: var(--text); font-size: 1rem; font-weight: 500; }
+    .dropzone p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.8rem; }
     .file-area-note {
       margin: 0.5rem 0 0;
       font-size: 0.75rem;
@@ -805,7 +808,6 @@
       color: var(--accent);
     }
     .dropzone {
-      border-width: 1.5px;
       border-radius: 6px;
     }
     input[type="text"],
@@ -871,13 +873,9 @@
     <div class="layout">
       <div class="layout-main">
         <section class="panel">
-      <div class="dropzone" id="dropzone" aria-label="PPTXファイルをドロップ">
-        <p><strong>.pptx</strong> をドロップ</p>
-        <p class="hint">PowerPoint で開いているファイルは閉じてから</p>
-        <div class="open-row">
-          <button type="button" class="secondary" id="openBtn">ファイルを開く</button>
-          <button type="button" class="secondary" id="pickBtn" hidden>ファイルを選ぶ</button>
-        </div>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="ファイルを選択">
+        <strong>ファイルを選択</strong>
+        <p>.pptx</p>
         <p class="file-name" id="fileName"></p>
         <span class="file-mode" id="fileMode" hidden></span>
       </div>
