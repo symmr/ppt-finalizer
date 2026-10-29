@@ -43,8 +43,7 @@ const bodyCustomFontInput = document.getElementById("bodyCustomFontInput");
 const scanningMsg = document.getElementById("scanningMsg");
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
-const fileNameEl = document.getElementById("fileName");
-const fileModeEl = document.getElementById("fileMode");
+const fileMeta = document.getElementById("fileMeta");
 const overwriteBtn = document.getElementById("overwriteBtn");
 const downloadBtn = document.getElementById("downloadBtn");
 const clearBtn = document.getElementById("clearBtn");
@@ -396,15 +395,14 @@ function bindFontPicker(selectEl, customInput, getSelected, setSelected) {
   });
 }
 
-function updateFileMode() {
-  if (!selectedFile) {
-    fileModeEl.hidden = true;
+function setFileMeta(file) {
+  if (!file) {
+    fileMeta.hidden = true;
+    fileMeta.textContent = "";
     return;
   }
-  fileModeEl.hidden = false;
-  fileModeEl.textContent = sourceFileHandle
-    ? "上書き保存可"
-    : "ダウンロードのみ";
+  fileMeta.hidden = false;
+  fileMeta.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
 }
 
 function setActionState() {
@@ -412,7 +410,6 @@ function setActionState() {
   downloadBtn.disabled = !hasFile;
   clearBtn.disabled = !hasFile;
   overwriteBtn.disabled = !hasFile || !sourceFileHandle;
-  updateFileMode();
 }
 
 async function verifyPermission(handle, readWrite = true) {
@@ -902,7 +899,7 @@ async function loadFromFile(file, handle = null) {
   sourceFileHandle = handle;
   if (!handle) parentDirHandle = null;
 
-  fileNameEl.textContent = file ? file.name : "";
+  setFileMeta(file);
   hideError();
   hasResultContent = false;
   resultPanel.hidden = true;
