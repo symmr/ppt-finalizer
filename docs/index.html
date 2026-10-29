@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-app="ppt-finalizer">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -757,6 +757,21 @@
     .app-version a:hover {
       color: var(--accent);
     }
+    .app-nav {
+      margin: 1.25rem 0 0;
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .app-nav a {
+      color: var(--muted);
+    }
+    .app-nav a:hover {
+      color: var(--accent);
+    }
+    .app-nav:not([hidden]) + .app-version {
+      margin-top: 0.4rem;
+    }
     /* SmoothUI 風: Geist、6px 角丸、2 段シャドウ、単一アクセント */
     body {
       font-family: "Geist", "Noto Sans JP", system-ui, -apple-system, sans-serif;
@@ -1071,6 +1086,7 @@
     </div>
 
     <p class="disclaimer">ご利用は自己責任でお願いします。</p>
+    <p class="app-nav" id="appNav" hidden></p>
     <p class="app-version" id="appVersionLine" hidden>
       <a href="https://github.com/symmr/ppt-finalizer/" target="_blank" rel="noopener noreferrer">GitHub</a>
       · <span id="appVersion"></span>
