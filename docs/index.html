@@ -350,26 +350,18 @@
     }
     .dropzone strong { color: var(--text); font-size: 1rem; font-weight: 500; }
     .dropzone p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.8rem; }
+    .meta {
+      margin: 0.75rem 0 0;
+      color: var(--muted);
+      font-size: 0.875rem;
+      word-break: break-all;
+    }
     .file-area-note {
-      margin: 0.5rem 0 0;
+      margin: 0.65rem 0 0;
       font-size: 0.75rem;
       color: var(--muted);
       line-height: 1.45;
       font-weight: 400;
-    }
-    .file-name {
-      margin-top: 0.75rem;
-      font-size: 0.9rem;
-      word-break: break-all;
-    }
-    .file-mode {
-      display: inline-block;
-      margin-top: 0.5rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      background: var(--ok-bg);
-      color: var(--ok-text);
     }
     .open-row {
       display: flex;
@@ -854,10 +846,6 @@
     .link-btn:hover {
       color: var(--accent);
     }
-    .file-mode {
-      border-radius: 18px;
-      font-weight: 500;
-    }
     .reduction-bar {
       background: var(--surface-tint);
       border: none;
@@ -887,12 +875,8 @@
       <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="ファイルを選択">
         <strong>ファイルを選択</strong>
         <p>.pptx</p>
-        <p class="file-name" id="fileName"></p>
-        <span class="file-mode" id="fileMode" hidden></span>
       </div>
-      <p class="file-area-note" id="fsNote">
-        初回の上書きでは、元ファイルと同じフォルダを選んでください
-      </p>
+      <p class="meta" id="fileMeta" hidden></p>
       <input type="file" id="fileInput" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
 
       <section class="panel font-options" id="fontOptionsPanel">
@@ -996,6 +980,9 @@
               <button type="button" class="secondary" id="downloadBtn" disabled>仕上げてダウンロード</button>
               <button type="button" class="secondary" id="clearBtn" disabled>クリア</button>
             </div>
+            <p class="file-area-note" id="fsNote">
+              初回の上書きでは、元ファイルと同じフォルダを選んでください
+            </p>
             <p class="error" id="errorMsg" hidden></p>
           </div>
         </div>
